@@ -1,0 +1,19 @@
+{
+  "name": "async/throttle",
+  "description": "Throttles async object throughput.",
+  "authors": [
+    {
+      "name": "Bilge",
+      "email": "bilge@scriptfusion.com"
+    }
+  ],
+  "require": {
+    "php": "^7.1",
+    "amphp/amp": "^2"
+  },
+  "autoload": {
+    "psr-4": {
+      "ScriptFUSION\\Async\\Throttle\\": "src"
+    }
+  }
+}
