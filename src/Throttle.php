@@ -29,15 +29,21 @@ class Throttle
      */
     private $awaiting = [];
 
-    private $maxConcurrency = 30;
+    private $maxConcurrency;
 
-    private $maxPerSecond = 75;
+    private $maxPerSecond;
 
     private $total = 0;
 
     private $startTime;
 
     private $finished = false;
+
+    public function __construct(int $maxPerSecond = 75, int $maxConcurrency = 30)
+    {
+        $this->maxPerSecond = $maxPerSecond;
+        $this->maxConcurrency = $maxConcurrency;
+    }
 
     public function await(Promise $promise): Promise
     {
