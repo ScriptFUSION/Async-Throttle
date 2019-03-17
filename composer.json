@@ -11,9 +11,20 @@
     "php": "^7.1",
     "amphp/amp": "^2"
   },
+  "require-dev": {
+    "phpunit/phpunit": "^7.5"
+  },
   "autoload": {
     "psr-4": {
       "ScriptFUSION\\Async\\Throttle\\": "src"
     }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "ScriptFUSIONTest\\Async\\Throttle\\": "test"
+    }
+  },
+  "scripts": {
+    "test": "phpunit -c test"
   }
 }

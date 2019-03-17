@@ -74,7 +74,7 @@ class Throttle
     {
         $this->finished = true;
 
-        return \Amp\call(function () {
+        return \Amp\call(function (): \Generator {
             yield $this->watching;
         });
     }
@@ -85,7 +85,7 @@ class Throttle
 
         $this->watching[$hash = spl_object_hash($promise)] = $promise;
 
-        $promise->onResolve(function () use ($hash) {
+        $promise->onResolve(function () use ($hash): void {
             unset($this->watching[$hash]);
 
             $this->tryFulfilPromises();
@@ -96,7 +96,7 @@ class Throttle
 
     private function isThrottled(): bool
     {
-        return $this->isBelowConcurrencyThreshold() && $this->isBelowChronoThreshold();
+        return !$this->isBelowConcurrencyThreshold() || !$this->isBelowChronoThreshold();
     }
 
     private function isBelowConcurrencyThreshold(): bool
@@ -106,12 +106,12 @@ class Throttle
 
     private function isBelowChronoThreshold(): bool
     {
-        return $this->total / max(1, self::getTime() - $this->startTime) < $this->maxPerSecond;
+        return $this->total / max(1, self::getTime() - $this->startTime) <= $this->maxPerSecond;
     }
 
     private function tryFulfilPromises(): bool
     {
-        if ($this->isThrottled()) {
+        if (!$this->isThrottled()) {
             foreach ($this->awaiting as $promise) {
                 unset($this->awaiting[spl_object_hash($promise)]);
                 $promise->resolve();
@@ -123,7 +123,7 @@ class Throttle
         if (!$this->isBelowChronoThreshold()) {
             Loop::delay(
                 self::RETRY_DELAY,
-                function () {
+                function (): void {
                     $this->tryFulfilPromises();
                 }
             );
