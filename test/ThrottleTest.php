@@ -26,7 +26,7 @@ final class ThrottleTest extends TestCase
     /**
      * Tests that a single promise is resolved almost instantly.
      */
-    public function testPromiseResolved(): void
+    public function testPromiseResolved()/*: void*/
     {
         Loop::run(function (): \Generator {
             $promise = new Delayed(0);
@@ -36,7 +36,7 @@ final class ThrottleTest extends TestCase
             yield $this->throttle->finish();
             self::assertLessThanOrEqual(.01, microtime(true) - $start);
 
-            $promise->onResolve(static function () use (&$resolved): void {
+            $promise->onResolve(static function () use (&$resolved)/*: void*/ {
                 $resolved = true;
             });
             self::assertTrue($resolved);
@@ -46,7 +46,7 @@ final class ThrottleTest extends TestCase
     /**
      * Tests that a hundred promises that resolve almost immediately are not throttled despite low concurrency limit.
      */
-    public function testThroughput(): void
+    public function testThroughput()/*: void*/
     {
         Loop::run(function (): \Generator {
             $this->throttle->setMaxConcurrency(1);

@@ -13,7 +13,7 @@ class Throttle
     /**
      * Milliseconds to wait when the watch frequency crosses the threshold.
      */
-    private const RETRY_DELAY = 100;
+    /*private*/ const RETRY_DELAY = 100;
 
     /**
      * List of promises we're throttling.
@@ -79,13 +79,13 @@ class Throttle
         });
     }
 
-    private function watch(Promise $promise): void
+    private function watch(Promise $promise)/*: void*/
     {
         $this->startTime === null && $this->startTime = self::getTime();
 
         $this->watching[$hash = spl_object_hash($promise)] = $promise;
 
-        $promise->onResolve(function () use ($hash): void {
+        $promise->onResolve(function () use ($hash)/*: void*/ {
             unset($this->watching[$hash]);
 
             $this->tryFulfilPromises();
@@ -123,7 +123,7 @@ class Throttle
         if (!$this->isBelowChronoThreshold()) {
             Loop::delay(
                 self::RETRY_DELAY,
-                function (): void {
+                function ()/*: void*/ {
                     $this->tryFulfilPromises();
                 }
             );
@@ -147,7 +147,7 @@ class Throttle
         return $this->maxConcurrency;
     }
 
-    public function setMaxConcurrency(int $maxConcurrency): void
+    public function setMaxConcurrency(int $maxConcurrency)/*: void*/
     {
         $this->maxConcurrency = $maxConcurrency;
     }
@@ -157,7 +157,7 @@ class Throttle
         return $this->maxPerSecond;
     }
 
-    public function setMaxPerSecond(int $maxPerSecond): void
+    public function setMaxPerSecond(int $maxPerSecond)/*: void*/
     {
         $this->maxPerSecond = $maxPerSecond;
     }
