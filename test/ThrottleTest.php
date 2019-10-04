@@ -3,62 +3,84 @@ declare(strict_types=1);
 
 namespace ScriptFUSIONTest\Async\Throttle;
 
-use Amp\Delayed;
-use Amp\Loop;
-use PHPUnit\Framework\TestCase;
+use Amp\PHPUnit\AsyncTestCase;
+use Amp\Success;
 use ScriptFUSION\Async\Throttle\Throttle;
 
 /**
  * @see Throttle
  */
-final class ThrottleTest extends TestCase
+final class ThrottleTest extends AsyncTestCase
 {
-    /**
-     * @var Throttle
-     */
+    /** @var Throttle */
     private $throttle;
 
-    protected function setUp()
+    protected function setUp()/*: void*/
     {
+        parent::setUp();
+
         $this->throttle = new Throttle;
     }
 
     /**
-     * Tests that a single promise is resolved almost instantly.
+     * Tests that a single promise is not throttled.
      */
-    public function testPromiseResolved()/*: void*/
+    public function testPromiseResolved(): \Generator
     {
-        Loop::run(function (): \Generator {
-            $promise = new Delayed(0);
+        $promise = new Success();
 
-            $start = microtime(true);
-            yield $this->throttle->await($promise);
-            yield $this->throttle->finish();
-            self::assertLessThanOrEqual(.01, microtime(true) - $start);
+        $start = microtime(true);
+        yield $this->throttle->await($promise);
+        self::assertLessThanOrEqual(.01, microtime(true) - $start);
 
-            $promise->onResolve(static function () use (&$resolved)/*: void*/ {
-                $resolved = true;
-            });
-            self::assertTrue($resolved);
+        $promise->onResolve(static function () use (&$resolved)/*: void*/ {
+            $resolved = true;
         });
+
+        self::assertTrue($resolved);
     }
 
     /**
-     * Tests that a hundred promises that resolve almost immediately are not throttled despite low concurrency limit.
+     * Tests that a hundred promises that resolve immediately are not throttled despite low concurrency limit.
      */
-    public function testThroughput()/*: void*/
+    public function testThroughput(): \Generator
     {
-        Loop::run(function (): \Generator {
-            $this->throttle->setMaxConcurrency(1);
-            $this->throttle->setMaxPerSecond($max = 100);
+        $this->throttle->setMaxConcurrency(1);
+        $this->throttle->setMaxPerSecond($max = 100);
 
-            $start = microtime(true);
-            for ($i = 0; $i < $max; ++$i) {
-                yield $this->throttle->await(new Delayed(0));
-            }
-            yield $this->throttle->finish();
+        $start = microtime(true);
+        for ($i = 0; $i < $max; ++$i) {
+            yield $this->throttle->await(new Success());
+        }
 
-            self::assertLessThanOrEqual(.1, microtime(true) - $start);
-        });
+        self::assertLessThanOrEqual(.1, microtime(true) - $start);
+    }
+
+    /**
+     * Tests that when concurrency is unbounded and the throughput is 1/sec, the specified number of promises,
+     * each resolving immediately, are throttled with one second delays each, except the first.
+     *
+     * @param int $promises Number of promises.
+     *
+     * @dataProvider providePromiseAmount
+     */
+    public function testNPromisesThrottled(int $promises): \Generator
+    {
+        $this->throttle->setMaxConcurrency(PHP_INT_MAX);
+        $this->throttle->setMaxPerSecond(1);
+
+        $start = microtime(true);
+        for ($i = 0; $i < $promises; ++$i) {
+            yield $this->throttle->await(new Success());
+        }
+
+        self::assertGreaterThan($promises - 1, $time = microtime(true) - $start, 'Minimum execution time.');
+        self::assertLessThan($promises, $time, 'Maximum execution time.');
+    }
+
+    public function providePromiseAmount()/*: iterable*/
+    {
+        yield 'Two promises' => [2];
+        yield 'Three promises' => [3];
     }
 }

@@ -7,6 +7,7 @@ use Amp\Deferred;
 use Amp\Delayed;
 use Amp\Loop;
 use Amp\Promise;
+use function Amp\call;
 
 class Throttle
 {
@@ -74,13 +75,15 @@ class Throttle
     {
         $this->finished = true;
 
-        return \Amp\call(function (): \Generator {
+        return call(function (): \Generator {
             yield $this->watching;
         });
     }
 
     private function watch(Promise $promise)/*: void*/
     {
+        ++$this->total;
+
         $this->startTime === null && $this->startTime = self::getTime();
 
         $this->watching[$hash = spl_object_hash($promise)] = $promise;
@@ -90,8 +93,6 @@ class Throttle
 
             $this->tryFulfilPromises();
         });
-
-        ++$this->total;
     }
 
     private function isThrottled(): bool
@@ -106,7 +107,8 @@ class Throttle
 
     private function isBelowChronoThreshold(): bool
     {
-        return $this->total / max(1, self::getTime() - $this->startTime) <= $this->maxPerSecond;
+        // The +1 constant exists because we never throttle the first promise.
+        return $this->total / (self::getTime() - $this->startTime + 1) <= $this->maxPerSecond;
     }
 
     private function tryFulfilPromises(): bool

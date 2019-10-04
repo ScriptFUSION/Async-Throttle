@@ -12,6 +12,7 @@
     "amphp/amp": "^2"
   },
   "require-dev": {
+    "amphp/phpunit-util": "^1.1",
     "phpunit/phpunit": "^6.5"
   },
   "autoload": {
