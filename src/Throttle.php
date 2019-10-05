@@ -7,7 +7,6 @@ use Amp\Deferred;
 use Amp\Delayed;
 use Amp\Loop;
 use Amp\Promise;
-use function Amp\call;
 
 class Throttle
 {
@@ -17,18 +16,18 @@ class Throttle
     /*private*/ const RETRY_DELAY = 100;
 
     /**
-     * List of promises we're throttling.
+     * List of unresolved promises.
      *
      * @var Promise[]
      */
-    private $watching = [];
+    private $awaiting = [];
 
     /**
-     * List of promises waiting to be notified when the throttle is cleared.
+     * Promise that blocks whilst the throttle is engaged.
      *
-     * @var Deferred[]
+     * @var Deferred|null
      */
-    private $awaiting = [];
+    private $throttle;
 
     private $maxConcurrency;
 
@@ -38,8 +37,6 @@ class Throttle
 
     private $startTime;
 
-    private $finished = false;
-
     public function __construct(int $maxPerSecond = 75, int $maxConcurrency = 30)
     {
         $this->maxPerSecond = $maxPerSecond;
@@ -48,8 +45,8 @@ class Throttle
 
     public function await(Promise $promise): Promise
     {
-        if ($this->finished) {
-            throw new \BadMethodCallException('Cannot await: throttle has finished.');
+        if ($this->isThrottling()) {
+            throw new \BadMethodCallException('Cannot await: throttle is engaged!');
         }
 
         $this->watch($promise);
@@ -60,24 +57,9 @@ class Throttle
             return new Delayed(0);
         }
 
-        $deferred = new Deferred;
-        $this->awaiting[spl_object_hash($deferred)] = $deferred;
+        $this->throttle = new Deferred;
 
-        return $deferred->promise();
-    }
-
-    /**
-     * Finish awaiting objects and waits for all pending promises to complete.
-     *
-     * @return Promise
-     */
-    public function finish(): Promise
-    {
-        $this->finished = true;
-
-        return call(function (): \Generator {
-            yield $this->watching;
-        });
+        return $this->throttle->promise();
     }
 
     private function watch(Promise $promise)/*: void*/
@@ -86,13 +68,23 @@ class Throttle
 
         $this->startTime === null && $this->startTime = self::getTime();
 
-        $this->watching[$hash = spl_object_hash($promise)] = $promise;
+        $this->awaiting[$hash = spl_object_hash($promise)] = $promise;
 
         $promise->onResolve(function () use ($hash)/*: void*/ {
-            unset($this->watching[$hash]);
+            unset($this->awaiting[$hash]);
 
             $this->tryFulfilPromises();
         });
+    }
+
+    /**
+     * Gets a value indicating whether the throttle is currently engaged.
+     *
+     * @return bool True if the throttle is engaged, otherwise false.
+     */
+    public function isThrottling(): bool
+    {
+        return $this->throttle !== null;
     }
 
     private function isThrottled(): bool
@@ -102,7 +94,7 @@ class Throttle
 
     private function isBelowConcurrencyThreshold(): bool
     {
-        return $this->getActive() < $this->maxConcurrency;
+        return $this->countAwaiting() < $this->maxConcurrency;
     }
 
     private function isBelowChronoThreshold(): bool
@@ -114,9 +106,9 @@ class Throttle
     private function tryFulfilPromises(): bool
     {
         if (!$this->isThrottled()) {
-            foreach ($this->awaiting as $promise) {
-                unset($this->awaiting[spl_object_hash($promise)]);
-                $promise->resolve();
+            if ($throttle = $this->throttle) {
+                $this->throttle = null;
+                $throttle->resolve();
             }
 
             return true;
@@ -134,9 +126,17 @@ class Throttle
         return false;
     }
 
-    public function getActive(): int
+    /**
+     * @return Promise[]
+     */
+    public function getAwaiting(): array
     {
-        return \count($this->watching);
+        return $this->awaiting;
+    }
+
+    public function countAwaiting(): int
+    {
+        return \count($this->awaiting);
     }
 
     public function getTotal(): int

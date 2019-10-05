@@ -23,21 +23,17 @@ final class ThrottleTest extends AsyncTestCase
     }
 
     /**
-     * Tests that a single promise is not throttled.
+     * Tests that even when throttle constraints are at their lowest values, a single promise is not throttled.
      */
     public function testPromiseResolved(): \Generator
     {
-        $promise = new Success();
+        $this->throttle->setMaxConcurrency(1);
+        $this->throttle->setMaxPerSecond(1);
 
         $start = microtime(true);
-        yield $this->throttle->await($promise);
+        yield $this->throttle->await(new Success());
+
         self::assertLessThanOrEqual(.01, microtime(true) - $start);
-
-        $promise->onResolve(static function () use (&$resolved)/*: void*/ {
-            $resolved = true;
-        });
-
-        self::assertTrue($resolved);
     }
 
     /**
@@ -82,5 +78,25 @@ final class ThrottleTest extends AsyncTestCase
     {
         yield 'Two promises' => [2];
         yield 'Three promises' => [3];
+    }
+
+    /**
+     * Tests that when throttle->await() is not yielded and the throttle is engaged, an exception is thrown.
+     */
+    public function testThrottleAbuse(): \Generator
+    {
+        $this->throttle->setMaxPerSecond(1);
+
+        // Throttle is not engaged.
+        yield $this->throttle->await(new Success());
+        self::assertFalse($this->throttle->isThrottling());
+
+        // Throttle is now engaged.
+        $this->throttle->await(new Success());
+        self::assertTrue($this->throttle->isThrottling());
+
+        // Throttle is still engaged, but we didn't yield the last await() operation.
+        $this->expectException(\BadMethodCallException::class);
+        $this->throttle->await(new Success());
     }
 }
