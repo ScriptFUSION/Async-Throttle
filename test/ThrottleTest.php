@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ScriptFUSIONTest\Async\Throttle;
 
+use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Success;
 use ScriptFUSION\Async\Throttle\Throttle;
@@ -23,7 +24,7 @@ final class ThrottleTest extends AsyncTestCase
     }
 
     /**
-     * Tests that even when throttle constraints are at their lowest values, a single promise is not throttled.
+     * Tests that when throttle constraints are at their lowest values, a single promise is throttled for one second.
      */
     public function testPromiseResolved(): \Generator
     {
@@ -33,13 +34,27 @@ final class ThrottleTest extends AsyncTestCase
         $start = microtime(true);
         yield $this->throttle->await(new Success());
 
-        self::assertLessThanOrEqual(.01, microtime(true) - $start);
+        self::assertGreaterThan(1, $time = microtime(true) - $start);
+        self::assertLessThan(2, $time);
     }
 
     /**
-     * Tests that a hundred promises that resolve immediately are not throttled despite low concurrency limit.
+     * Tests that 99 promises that resolve immediately are not throttled despite low concurrency limit.
      */
     public function testThroughput(): \Generator
+    {
+        $this->throttle->setMaxConcurrency(1);
+        $this->throttle->setMaxPerSecond($max = 100);
+
+        $start = microtime(true);
+        for ($i = 0; $i < $max - 1; ++$i) {
+            yield $this->throttle->await(new Success());
+        }
+
+        self::assertLessThanOrEqual(.1, microtime(true) - $start);
+    }
+
+    public function testThroughput2(): \Generator
     {
         $this->throttle->setMaxConcurrency(1);
         $this->throttle->setMaxPerSecond($max = 100);
@@ -49,7 +64,8 @@ final class ThrottleTest extends AsyncTestCase
             yield $this->throttle->await(new Success());
         }
 
-        self::assertLessThanOrEqual(.1, microtime(true) - $start);
+        self::assertGreaterThan(1, microtime(true) - $start);
+        self::assertLessThan(2, microtime(true) - $start);
     }
 
     /**
@@ -70,8 +86,8 @@ final class ThrottleTest extends AsyncTestCase
             yield $this->throttle->await(new Success());
         }
 
-        self::assertGreaterThan($promises - 1, $time = microtime(true) - $start, 'Minimum execution time.');
-        self::assertLessThan($promises, $time, 'Maximum execution time.');
+        self::assertGreaterThan($promises, $time = microtime(true) - $start, 'Minimum execution time.');
+        self::assertLessThan($promises + 1, $time, 'Maximum execution time.');
     }
 
     public function providePromiseAmount()/*: iterable*/
@@ -98,5 +114,44 @@ final class ThrottleTest extends AsyncTestCase
         // Throttle is still engaged, but we didn't yield the last await() operation.
         $this->expectException(\BadMethodCallException::class);
         $this->throttle->await(new Success());
+    }
+
+    /**
+     * Tests that when a burst of promises arrive at once, they are throttled according to the chrono limit.
+     */
+    public function testBurst(): \Generator
+    {
+        $this->throttle->setMaxPerSecond(1);
+
+        // Engage throttle.
+        $this->throttle->await(new Success());
+        self::assertTrue($this->throttle->isThrottling());
+
+        // Wait 3 seconds.
+        yield new Delayed(3000);
+
+        $start = microtime(true);
+
+        // First must be throttled despite last two seconds having no activity.
+        yield $this->throttle->await(new Success());
+
+        // Second must be throttled for one second.
+        yield $this->throttle->await(new Success());
+
+        self::assertGreaterThan(2, $time = microtime(true) - $start, 'Minimum execution time.');
+        self::assertLessThan(3, $time, 'Maximum execution time.');
+        echo $time;
+    }
+
+    /**
+     * Tests that getters return the same values passed to setters.
+     */
+    public function testSetterRoundTrip()/*: void*/
+    {
+        $this->throttle->setMaxConcurrency($concurrency = 123);
+        self::assertSame($concurrency, $this->throttle->getMaxConcurrency());
+
+        $this->throttle->setMaxPerSecond($chrono = 456);
+        self::assertSame($chrono, $this->throttle->getMaxPerSecond());
     }
 }

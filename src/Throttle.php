@@ -33,9 +33,7 @@ class Throttle
 
     private $maxPerSecond;
 
-    private $total = 0;
-
-    private $startTime;
+    private $chronoStack = [];
 
     public function __construct(int $maxPerSecond = 75, int $maxConcurrency = 30)
     {
@@ -64,9 +62,7 @@ class Throttle
 
     private function watch(Promise $promise)/*: void*/
     {
-        ++$this->total;
-
-        $this->startTime === null && $this->startTime = self::getTime();
+        $this->chronoStack[] = self::getTime();
 
         $this->awaiting[$hash = spl_object_hash($promise)] = $promise;
 
@@ -87,11 +83,6 @@ class Throttle
         return $this->throttle !== null;
     }
 
-    private function isThrottled(): bool
-    {
-        return !$this->isBelowConcurrencyThreshold() || !$this->isBelowChronoThreshold();
-    }
-
     private function isBelowConcurrencyThreshold(): bool
     {
         return $this->countAwaiting() < $this->maxConcurrency;
@@ -99,13 +90,22 @@ class Throttle
 
     private function isBelowChronoThreshold(): bool
     {
-        // The +1 constant exists because we never throttle the first promise.
-        return $this->total / (self::getTime() - $this->startTime + 1) <= $this->maxPerSecond;
+        $this->discardObsoleteChronoEntries();
+
+        return count($this->chronoStack) < $this->maxPerSecond;
+    }
+
+    private function discardObsoleteChronoEntries()/*: void*/
+    {
+        while (isset($this->chronoStack[0]) && $this->chronoStack[0] < self::getTime() - 1) {
+            array_shift($this->chronoStack);
+        }
     }
 
     private function tryFulfilPromises(): bool
     {
-        if (!$this->isThrottled()) {
+        // Not throttled.
+        if ($this->isBelowConcurrencyThreshold() && $belowChronoThreshold = $this->isBelowChronoThreshold()) {
             if ($throttle = $this->throttle) {
                 $this->throttle = null;
                 $throttle->resolve();
@@ -114,7 +114,8 @@ class Throttle
             return true;
         }
 
-        if (!$this->isBelowChronoThreshold()) {
+        if (!$belowChronoThreshold) {
+            // Schedule function to be called recursively.
             Loop::delay(
                 self::RETRY_DELAY,
                 function ()/*: void*/ {
@@ -137,11 +138,6 @@ class Throttle
     public function countAwaiting(): int
     {
         return \count($this->awaiting);
-    }
-
-    public function getTotal(): int
-    {
-        return $this->total;
     }
 
     public function getMaxConcurrency(): int
