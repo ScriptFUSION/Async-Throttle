@@ -8,10 +8,14 @@ use Amp\Delayed;
 use Amp\Loop;
 use Amp\Promise;
 
+/**
+ * Throttles promise throughput based on two independent thresholds: number of concurrently executing promises
+ * and number of promises awaited per second.
+ */
 class Throttle
 {
     /**
-     * Milliseconds to wait when the watch frequency crosses the threshold.
+     * Milliseconds to wait before reevaluating thresholds when above chrono threshold.
      */
     /*private*/ const RETRY_DELAY = 100;
 
@@ -33,14 +37,34 @@ class Throttle
 
     private $maxPerSecond;
 
+    /**
+     * Stack of timestamps when each promise was awaited.
+     *
+     * @var array
+     */
     private $chronoStack = [];
 
+    /**
+     * Initializes this instance with the specified throttle limits.
+     * If either limit is reached or exceeded, the throttle will become engaged, otherwise it is disengaged.
+     *
+     * @param int $maxPerSecond Optional. Maximum number of promises per second.
+     * @param int $maxConcurrency Optional. Maximum number of concurrent promises.
+     */
     public function __construct(int $maxPerSecond = 75, int $maxConcurrency = 30)
     {
         $this->maxPerSecond = $maxPerSecond;
         $this->maxConcurrency = $maxConcurrency;
     }
 
+    /**
+     * Awaits the specified promise. When the throttle is engaged, returns a promise that will not resolve until
+     * the throttle disengages. When the throttle is disengaged, returns a promise that will resolve in the next tick.
+     *
+     * @param Promise $promise Promise.
+     *
+     * @return Promise A promise that resolves when the throttle disengages.
+     */
     public function await(Promise $promise): Promise
     {
         if ($this->isThrottling()) {
@@ -50,8 +74,8 @@ class Throttle
         $this->watch($promise);
 
         if ($this->tryFulfilPromises()) {
-            /* Give consumers a chance to process the result before queuing another. Returning Success here forces a
-             * throttle condition to be reached before any processing can be done by the caller on the results. */
+            /* Give consumers a chance to process the result before queuing another. Returning Success here forces
+             * the throttle to become engaged before any processing can be done by the caller on the results. */
             return new Delayed(0);
         }
 
@@ -60,6 +84,11 @@ class Throttle
         return $this->throttle->promise();
     }
 
+    /**
+     * Watches a promise to observe when it resolves.
+     *
+     * @param Promise $promise Promise.
+     */
     private function watch(Promise $promise)/*: void*/
     {
         $this->chronoStack[] = self::getTime();
@@ -105,7 +134,7 @@ class Throttle
     private function tryFulfilPromises(): bool
     {
         // Not throttled.
-        if ($this->isBelowConcurrencyThreshold() && $belowChronoThreshold = $this->isBelowChronoThreshold()) {
+        if (($belowChronoThreshold = $this->isBelowChronoThreshold()) && $this->isBelowConcurrencyThreshold()) {
             if ($throttle = $this->throttle) {
                 $this->throttle = null;
                 $throttle->resolve();
@@ -128,13 +157,20 @@ class Throttle
     }
 
     /**
-     * @return Promise[]
+     * Gets the list of awaited promises that have not yet resolved.
+     *
+     * @return Promise[] List of awaited promises.
      */
     public function getAwaiting(): array
     {
         return $this->awaiting;
     }
 
+    /**
+     * Counts the number of awaited promises that have not yet resolved.
+     *
+     * @return int Number of awaited promises.
+     */
     public function countAwaiting(): int
     {
         return \count($this->awaiting);
@@ -145,6 +181,11 @@ class Throttle
         return $this->maxConcurrency;
     }
 
+    /**
+     * Sets the maximum number of concurrent promises that can be awaited and unresolved.
+     *
+     * @param int $maxConcurrency Maximum number of concurrent promises.
+     */
     public function setMaxConcurrency(int $maxConcurrency)/*: void*/
     {
         $this->maxConcurrency = $maxConcurrency;
@@ -155,6 +196,11 @@ class Throttle
         return $this->maxPerSecond;
     }
 
+    /**
+     * Sets the maximum number of promises that can be processed per second.
+     *
+     * @param int $maxPerSecond Maximum number of promises per second.
+     */
     public function setMaxPerSecond(int $maxPerSecond)/*: void*/
     {
         $this->maxPerSecond = $maxPerSecond;
