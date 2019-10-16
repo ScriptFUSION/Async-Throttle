@@ -17,7 +17,7 @@ class Throttle
     /**
      * Milliseconds to wait before reevaluating thresholds when above chrono threshold.
      */
-    /*private*/ const RETRY_DELAY = 100;
+    private const RETRY_DELAY = 100;
 
     /**
      * List of unresolved promises.
@@ -89,13 +89,13 @@ class Throttle
      *
      * @param Promise $promise Promise.
      */
-    private function watch(Promise $promise)/*: void*/
+    private function watch(Promise $promise): void
     {
         $this->chronoStack[] = self::getTime();
 
         $this->awaiting[$hash = spl_object_hash($promise)] = $promise;
 
-        $promise->onResolve(function () use ($hash)/*: void*/ {
+        $promise->onResolve(function () use ($hash): void {
             unset($this->awaiting[$hash]);
 
             $this->tryFulfilPromises();
@@ -124,7 +124,7 @@ class Throttle
         return count($this->chronoStack) < $this->maxPerSecond;
     }
 
-    private function discardObsoleteChronoEntries()/*: void*/
+    private function discardObsoleteChronoEntries(): void
     {
         while (isset($this->chronoStack[0]) && $this->chronoStack[0] < self::getTime() - 1) {
             array_shift($this->chronoStack);
@@ -147,9 +147,7 @@ class Throttle
             // Schedule function to be called recursively.
             Loop::delay(
                 self::RETRY_DELAY,
-                function ()/*: void*/ {
-                    $this->tryFulfilPromises();
-                }
+                \Closure::fromCallable([$this, __FUNCTION__])
             );
         }
 
@@ -186,7 +184,7 @@ class Throttle
      *
      * @param int $maxConcurrency Maximum number of concurrent promises.
      */
-    public function setMaxConcurrency(int $maxConcurrency)/*: void*/
+    public function setMaxConcurrency(int $maxConcurrency): void
     {
         $this->maxConcurrency = $maxConcurrency;
     }
@@ -201,7 +199,7 @@ class Throttle
      *
      * @param int $maxPerSecond Maximum number of promises per second.
      */
-    public function setMaxPerSecond(int $maxPerSecond)/*: void*/
+    public function setMaxPerSecond(int $maxPerSecond): void
     {
         $this->maxPerSecond = $maxPerSecond;
     }

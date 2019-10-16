@@ -16,7 +16,7 @@ final class ThrottleTest extends AsyncTestCase
     /** @var Throttle */
     private $throttle;
 
-    protected function setUp()/*: void*/
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -94,7 +94,7 @@ final class ThrottleTest extends AsyncTestCase
         self::assertLessThan($promises + 1, $time, 'Maximum execution time.');
     }
 
-    public function providePromiseAmount()/*: iterable*/
+    public function providePromiseAmount(): iterable
     {
         yield 'One promise' => [1];
         yield 'Two promises' => [2];
@@ -179,7 +179,7 @@ final class ThrottleTest extends AsyncTestCase
     /**
      * Tests that getters return the same values passed to setters.
      */
-    public function testSetterRoundTrip()/*: void*/
+    public function testSetterRoundTrip(): void
     {
         $this->throttle->setMaxConcurrency($concurrency = 123);
         self::assertSame($concurrency, $this->throttle->getMaxConcurrency());
