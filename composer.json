@@ -9,10 +9,11 @@
   ],
   "require": {
     "php": "^7",
-    "amphp/amp": "^2"
+    "amphp/amp": "^2.2"
   },
   "require-dev": {
     "amphp/phpunit-util": "^1.1",
+    "infection/infection": "*",
     "phpunit/phpunit": "^6.5"
   },
   "autoload": {
@@ -27,5 +28,8 @@
   },
   "scripts": {
     "test": "phpunit -c test"
+  },
+  "config": {
+    "sort-packages": true
   }
 }

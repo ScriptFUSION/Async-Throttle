@@ -24,18 +24,22 @@ final class ThrottleTest extends AsyncTestCase
     }
 
     /**
-     * Tests that when throttle constraints are at their lowest values, a single promise is throttled for one second.
+     * Tests that when concurrency is limited to one, each promise resolves in serial.
      */
-    public function testPromiseResolved(): \Generator
+    public function testConcurrency(): \Generator
     {
         $this->throttle->setMaxConcurrency(1);
-        $this->throttle->setMaxPerSecond(1);
+        $this->throttle->setMaxPerSecond(PHP_INT_MAX);
 
         $start = microtime(true);
-        yield $this->throttle->await(new Success());
+        for ($i = 1; $i <= $limit = 4; ++$i) {
+            yield $this->throttle->await(new Delayed($delay = 250));
 
-        self::assertGreaterThan(1, $time = microtime(true) - $start);
-        self::assertLessThan(2, $time);
+            self::assertGreaterThan($lowerBound = $delay * $i / 1000, $time = microtime(true) - $start);
+            self::assertLessThan($lowerBound + .01, $time);
+        }
+
+        self::assertTrue(isset($time), 'Looped.');
     }
 
     /**
@@ -92,6 +96,7 @@ final class ThrottleTest extends AsyncTestCase
 
     public function providePromiseAmount()/*: iterable*/
     {
+        yield 'One promise' => [1];
         yield 'Two promises' => [2];
         yield 'Three promises' => [3];
     }
@@ -121,6 +126,7 @@ final class ThrottleTest extends AsyncTestCase
      */
     public function testBurst(): \Generator
     {
+        $this->throttle->setMaxConcurrency(PHP_INT_MAX);
         $this->throttle->setMaxPerSecond(1);
 
         // Engage throttle.
@@ -140,7 +146,6 @@ final class ThrottleTest extends AsyncTestCase
 
         self::assertGreaterThan(2, $time = microtime(true) - $start, 'Minimum execution time.');
         self::assertLessThan(3, $time, 'Maximum execution time.');
-        echo $time;
     }
 
     /**
