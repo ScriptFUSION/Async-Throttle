@@ -15,6 +15,16 @@ use Amp\Promise;
 class Throttle
 {
     /**
+     * Maximum number of promises per second.
+     */
+    public const DEFAULT_PER_SECOND = 75;
+
+    /**
+     * Maximum number of concurrent promises.
+     */
+    public const DEFAULT_CONCURRENCY = 30;
+
+    /**
      * Milliseconds to wait before reevaluating thresholds when above chrono threshold.
      */
     private const RETRY_DELAY = 100;
@@ -51,8 +61,10 @@ class Throttle
      * @param int $maxPerSecond Optional. Maximum number of promises per second.
      * @param int $maxConcurrency Optional. Maximum number of concurrent promises.
      */
-    public function __construct(int $maxPerSecond = 75, int $maxConcurrency = 30)
-    {
+    public function __construct(
+        int $maxPerSecond = self::DEFAULT_PER_SECOND,
+        int $maxConcurrency = self::DEFAULT_CONCURRENCY
+    ) {
         $this->maxPerSecond = $maxPerSecond;
         $this->maxConcurrency = $maxConcurrency;
     }

@@ -58,6 +58,9 @@ final class ThrottleTest extends AsyncTestCase
         self::assertLessThanOrEqual(.1, microtime(true) - $start);
     }
 
+    /**
+     * Tests that 100 promises that resolve immediately are throttled only once the chrono threshold is hit.
+     */
     public function testThroughput2(): \Generator
     {
         $this->throttle->setMaxConcurrency(1);

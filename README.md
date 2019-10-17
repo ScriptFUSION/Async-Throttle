@@ -4,6 +4,7 @@ Async Throttle
 [![Latest version][Version image]][Releases]
 [![Total downloads][Downloads image]][Downloads]
 [![Build status][Build image]][Build]
+[![Mutation score][MSI image]][Build]
 [![Test coverage][Coverage image]][Coverage]
 [![Code style][Style image]][Style]
 
@@ -16,6 +17,7 @@ Throttles async object throughput.
   [Downloads image]: https://poser.pugx.org/async/throttle/downloads "Total downloads"
   [Build]: https://travis-ci.org/ScriptFUSION/Async-Throttle
   [Build image]: https://travis-ci.org/ScriptFUSION/Async-Throttle.svg?branch=master "Build status"
+  [MSI image]: https://badge.stryker-mutator.io/github.com/ScriptFUSION/Async-Throttle/master
   [Coverage]: https://coveralls.io/github/ScriptFUSION/Async-Throttle
   [Coverage image]: https://coveralls.io/repos/ScriptFUSION/Async-Throttle/badge.svg "Test coverage"
   [Style]: https://styleci.io/repos/131506544

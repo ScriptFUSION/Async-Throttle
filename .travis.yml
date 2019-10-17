@@ -26,7 +26,9 @@ install:
   - composer update --no-progress --no-suggest $DEPENDENCIES
 
 script:
-  - composer test -- --coverage-clover=build/logs/clover.xml
+  - composer test -- --coverage-clover=build/logs/clover.xml --coverage-xml=build/coverage/coverage-xml
+      --log-junit=build/coverage/phpunit.junit.xml
+  - vendor/bin/infection --min-msi=95 --threads="$(($(nproc) * 2))" --coverage=build/coverage
 
 after_success:
   - composer require php-coveralls/php-coveralls:^2
