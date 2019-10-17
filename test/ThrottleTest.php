@@ -153,7 +153,7 @@ final class ThrottleTest extends AsyncTestCase
     }
 
     /**
-     * Tests that promises awaiting (not yet resolved) can be counted, retrieved from the throttle and yielded.
+     * Tests that promises awaiting (not yet resolved) can be retrieved from the throttle and yielded.
      */
     public function testAwaiting(): \Generator
     {
@@ -161,19 +161,15 @@ final class ThrottleTest extends AsyncTestCase
         $this->throttle->setMaxPerSecond(PHP_INT_MAX);
 
         $start = microtime(true);
-
         $this->throttle->await($p1 = new Delayed(100));
         $this->throttle->await($p2 = new Delayed(200));
         $this->throttle->await($p3 = new Delayed($longest = 300));
 
-        // Count.
-        self::assertSame(3, $this->throttle->countAwaiting());
-
         // Retrieve.
         $awaiting = $this->throttle->getAwaiting();
-        self::assertContains($p1, $awaiting);
-        self::assertContains($p2, $awaiting);
-        self::assertContains($p3, $awaiting);
+        self::assertContains($p1, $awaiting, 'Promise #1.');
+        self::assertContains($p2, $awaiting, 'Promise #2.');
+        self::assertContains($p3, $awaiting, 'Promise #3.');
 
         // Yield.
         yield $awaiting;
