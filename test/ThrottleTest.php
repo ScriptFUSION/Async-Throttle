@@ -7,6 +7,7 @@ use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Success;
 use ScriptFUSION\Async\Throttle\Throttle;
+use function Amp\Promise\wrap;
 
 /**
  * @see Throttle
@@ -177,6 +178,43 @@ final class ThrottleTest extends AsyncTestCase
         // Yield.
         yield $awaiting;
         self::assertGreaterThan($longest / 1000, microtime(true) - $start);
+    }
+
+    /**
+     * Tests that the awaiting counter outputs correct values during throttle spin up and spin down.
+     */
+    public function testCountAwaiting(): \Generator
+    {
+        $this->throttle->setMaxConcurrency($max = 10);
+        $this->throttle->setMaxPerSecond(PHP_INT_MAX);
+
+        $countUp = $countDown = [];
+
+        // Spin up.
+        for ($count = 0; $count < $max; ++$count) {
+            $this->throttle->await(
+                wrap(
+                    new Delayed($count),
+                    // Spin down.
+                    function () use ($count, $max, &$countDown): void {
+                        self::assertSame(
+                            $max - $count,
+                            $countDown[] = $this->throttle->countAwaiting(),
+                            "Count down iteration #$count."
+                        );
+                    }
+                )
+            );
+
+            self::assertSame($count + 1, $countUp[] = $this->throttle->countAwaiting(), "Count up iteration #$count.");
+        }
+
+        self::assertSame($max, $this->throttle->countAwaiting(), 'Fully loaded.');
+        yield $this->throttle->getAwaiting();
+        self::assertSame(0, $this->throttle->countAwaiting(), 'Completely emptied.');
+
+        self::assertSame(range(1, $max), $countUp, 'Count up.');
+        self::assertSame(range($max, 1), $countDown, 'Count down.');
     }
 
     /**
