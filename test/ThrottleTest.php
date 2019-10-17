@@ -7,7 +7,6 @@ use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Success;
 use ScriptFUSION\Async\Throttle\Throttle;
-use function Amp\Promise\wrap;
 
 /**
  * @see Throttle
@@ -189,7 +188,7 @@ final class ThrottleTest extends AsyncTestCase
         // Spin up.
         for ($count = 0; $count < $max; ++$count) {
             $this->throttle->await(
-                wrap(
+                \Amp\Promise\wrap(
                     new Delayed($count),
                     // Spin down.
                     function () use ($count, $max, &$countDown): void {
