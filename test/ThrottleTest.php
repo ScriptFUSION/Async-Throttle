@@ -221,16 +221,18 @@ final class ThrottleTest extends AsyncTestCase
     {
         $this->throttle->setMaxConcurrency(1);
         $this->throttle->await(new Delayed(0));
-        self::assertTrue($this->throttle->isThrottling());
+        self::assertTrue($this->throttle->isThrottling(), 'Throttle is throttling.');
 
         try {
             $this->throttle->await(new Success());
         } catch (\BadMethodCallException $exception) {
         }
-        self::assertTrue(isset($exception));
+        self::assertTrue(isset($exception), 'Exception thrown trying to await another promise.');
 
-        yield $this->throttle->join();
-        self::assertFalse($this->throttle->isThrottling());
+        self::assertNull(yield $this->throttle->join(), 'Free slot unconfirmed.');
+        self::assertFalse($this->throttle->isThrottling(), 'Throttle is not actually throttling.');
+        self::assertTrue(yield $this->throttle->join(), 'Free slot confirmed.');
+
         $this->throttle->await(new Success());
     }
 

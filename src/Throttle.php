@@ -99,9 +99,12 @@ class Throttle
 
     /**
      * Joins the primary fiber from a joining fiber such that the joining fiber will be throttled if the primary is
-     * throttled, otherwise continues immediately.
+     * throttled, otherwise continues immediately. This method should be called continuously until it returns true,
+     * otherwise two or more joining fibers may falsely assume they can use the throttle when there is only capacity
+     * for one more. It is safe to call await() immediately after this method returns true.
      *
-     * @return Promise A promise that resolves when the throttle disengages.
+     * @return Promise<true|null> A promise that resolves when the throttle is disengaged. True if await() can be
+     *     called, null if throttle may still be engaged.
      */
     public function join(): Promise
     {
@@ -109,7 +112,7 @@ class Throttle
             return $this->throttle->promise();
         }
 
-        return new Success();
+        return new Success(true);
     }
 
     /**
