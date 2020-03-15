@@ -7,6 +7,7 @@ use Amp\Deferred;
 use Amp\Delayed;
 use Amp\Loop;
 use Amp\Promise;
+use Amp\Success;
 
 /**
  * Throttles promise throughput based on two independent thresholds: number of concurrently executing promises
@@ -94,6 +95,21 @@ class Throttle
         $this->throttle = new Deferred;
 
         return $this->throttle->promise();
+    }
+
+    /**
+     * Joins the primary fiber from a joining fiber such that the joining fiber will be throttled if the primary is
+     * throttled, otherwise continues immediately.
+     *
+     * @return Promise A promise that resolves when the throttle disengages.
+     */
+    public function join(): Promise
+    {
+        if ($this->isThrottling()) {
+            return $this->throttle->promise();
+        }
+
+        return new Success();
     }
 
     /**

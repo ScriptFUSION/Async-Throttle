@@ -213,6 +213,28 @@ final class ThrottleTest extends AsyncTestCase
     }
 
     /**
+     * Tests that when throttling, calling join() will wait until the throttle is cleared before continuing.
+     *
+     * @return \Generator
+     */
+    public function testJoin(): \Generator
+    {
+        $this->throttle->setMaxConcurrency(1);
+        $this->throttle->await(new Delayed(0));
+        self::assertTrue($this->throttle->isThrottling());
+
+        try {
+            $this->throttle->await(new Success());
+        } catch (\BadMethodCallException $exception) {
+        }
+        self::assertTrue(isset($exception));
+
+        yield $this->throttle->join();
+        self::assertFalse($this->throttle->isThrottling());
+        $this->throttle->await(new Success());
+    }
+
+    /**
      * Tests that getters return the same values passed to setters.
      */
     public function testSetterRoundTrip(): void
