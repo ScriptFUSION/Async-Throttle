@@ -6,21 +6,21 @@ namespace ScriptFUSIONTest\Async\Throttle;
 use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Success;
-use ScriptFUSION\Async\Throttle\Throttle;
+use ScriptFUSION\Async\Throttle\DualThrottle;
 
 /**
- * @see Throttle
+ * @see DualThrottle
  */
-final class ThrottleTest extends AsyncTestCase
+final class DualThrottleTest extends AsyncTestCase
 {
-    /** @var Throttle */
+    /** @var DualThrottle */
     private $throttle;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->throttle = new Throttle;
+        $this->throttle = new DualThrottle;
     }
 
     /**
@@ -229,7 +229,7 @@ final class ThrottleTest extends AsyncTestCase
         }
         self::assertTrue(isset($exception), 'Exception thrown trying to await another promise.');
 
-        self::assertNull(yield $this->throttle->join(), 'Free slot unconfirmed.');
+        self::assertFalse(yield $this->throttle->join(), 'Free slot unconfirmed.');
         self::assertFalse($this->throttle->isThrottling(), 'Throttle is not actually throttling.');
         self::assertTrue(yield $this->throttle->join(), 'Free slot confirmed.');
 
