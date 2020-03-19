@@ -18,7 +18,7 @@ final class NullThrottle implements Throttle
 
     public function join(): Promise
     {
-        return new Success();
+        return new Success(true);
     }
 
     public function isThrottling(): bool
