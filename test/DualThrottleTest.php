@@ -7,6 +7,7 @@ use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Success;
 use ScriptFUSION\Async\Throttle\DualThrottle;
+use ScriptFUSION\Async\Throttle\ThrottleOverloadException;
 
 /**
  * @see DualThrottle
@@ -120,7 +121,7 @@ final class DualThrottleTest extends AsyncTestCase
         self::assertTrue($this->throttle->isThrottling());
 
         // Throttle is still engaged, but we didn't yield the last await() operation.
-        $this->expectException(\BadMethodCallException::class);
+        $this->expectException(ThrottleOverloadException::class);
         $this->throttle->await(new Success());
     }
 
@@ -225,7 +226,7 @@ final class DualThrottleTest extends AsyncTestCase
 
         try {
             $this->throttle->await(new Success());
-        } catch (\BadMethodCallException $exception) {
+        } catch (ThrottleOverloadException $exception) {
         }
         self::assertTrue(isset($exception), 'Exception thrown trying to await another promise.');
 

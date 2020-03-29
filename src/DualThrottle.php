@@ -73,7 +73,7 @@ class DualThrottle implements Throttle
     public function await(Promise $promise): Promise
     {
         if ($this->isThrottling()) {
-            throw new \BadMethodCallException('Cannot await: throttle is engaged!');
+            throw new ThrottleOverloadException('Cannot await: throttle is engaged!');
         }
 
         $this->watch($promise);
