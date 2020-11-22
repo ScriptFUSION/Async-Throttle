@@ -197,6 +197,18 @@ class DualThrottle implements Throttle
     }
 
     /**
+     * Measures promise throughput in promises/second.
+     *
+     * @return int Promises per second.
+     */
+    public function measureThroughput(): int
+    {
+        $this->removeObsoleteChronoEntries();
+
+        return \count($this->chronoStack);
+    }
+
+    /**
      * Gets the maximum number of concurrent promises that can be awaiting and unresolved.
      *
      * @return int Maximum number of concurrent promises.
