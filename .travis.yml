@@ -22,9 +22,9 @@ cache:
     - vendor
 
 install:
-  - alias composer=composer\ -n && composer selfupdate
+  - composer self-update --1
   - composer validate
-  - composer update --no-progress --no-suggest $DEPENDENCIES
+  - composer update --no-interaction --no-progress --no-suggest $DEPENDENCIES
 
 script:
   - composer test -- --coverage-clover=build/logs/clover.xml
