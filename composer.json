@@ -8,13 +8,13 @@
     }
   ],
   "require": {
-    "php": "^7.1",
+    "php": "^7.2|^8",
     "amphp/amp": "^2.2"
   },
   "require-dev": {
     "amphp/phpunit-util": "^1.1",
-    "infection/infection": "^0.13",
-    "phpunit/phpunit": "^7.5"
+    "infection/infection": ">=0.13,<1",
+    "phpunit/phpunit": "^8.5|^9"
   },
   "autoload": {
     "psr-4": {

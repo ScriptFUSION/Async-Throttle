@@ -4,10 +4,10 @@ notifications:
 language: php
 
 php:
-  - 7.1
   - 7.2
   - 7.3
   - 7.4
+  - 8.0
 
 env:
   matrix:
@@ -22,12 +22,11 @@ cache:
     - vendor
 
 install:
-  - composer self-update --1
   - composer validate
   - composer update --no-interaction --no-progress --no-suggest $DEPENDENCIES
 
 script:
-  - composer test -- --coverage-clover=build/logs/clover.xml
+  - XDEBUG_MODE=coverage composer test -- --coverage-clover=build/logs/clover.xml
 
 after_success:
   - composer require php-coveralls/php-coveralls:^2
