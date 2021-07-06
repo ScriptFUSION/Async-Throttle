@@ -78,7 +78,7 @@ final class DualThrottleTest extends AsyncTestCase
 
     /**
      * Tests that when concurrency is unbounded and the throughput is 1/sec, the specified number of promises,
-     * each resolving immediately, are throttled with one second delays each, except the first.
+     * each resolving immediately, are throttled with one second delays between each.
      *
      * @param int $promises Number of promises.
      *
@@ -103,6 +103,28 @@ final class DualThrottleTest extends AsyncTestCase
         yield 'One promise' => [1];
         yield 'Two promises' => [2];
         yield 'Three promises' => [3];
+    }
+
+    /**
+     * Tests that when concurrency is unbounded and the throughput is 1 per 2 seconds, the specified number of
+     * promises, each resolving immediately, are throttled with two second delays between each.
+     *
+     * @param int $promises Number of promises.
+     *
+     * @dataProvider providePromiseAmount
+     */
+    public function testSlowThrottle(int $promises): \Generator
+    {
+        $this->throttle->setMaxConcurrency(PHP_INT_MAX);
+        $this->throttle->setMaxPerSecond(1 / 2);
+
+        $start = microtime(true);
+        for ($i = 0; $i < $promises; ++$i) {
+            yield $this->throttle->await(new Success());
+        }
+
+        self::assertGreaterThan($promises * 2, $time = microtime(true) - $start, 'Minimum execution time.');
+        self::assertLessThan($promises * 2 + 1, $time, 'Maximum execution time.');
     }
 
     /**
@@ -245,7 +267,7 @@ final class DualThrottleTest extends AsyncTestCase
         $this->throttle->setMaxConcurrency($concurrency = 123);
         self::assertSame($concurrency, $this->throttle->getMaxConcurrency());
 
-        $this->throttle->setMaxPerSecond($chrono = 456);
+        $this->throttle->setMaxPerSecond($chrono = 456.);
         self::assertSame($chrono, $this->throttle->getMaxPerSecond());
     }
 }

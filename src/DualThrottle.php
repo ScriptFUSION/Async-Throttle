@@ -46,7 +46,7 @@ class DualThrottle implements Throttle
     private $maxConcurrency;
 
     /**
-     * @var int Maximum number of concurrent promises.
+     * @var float Maximum number of concurrent promises.
      */
     private $maxPerSecond;
 
@@ -59,11 +59,11 @@ class DualThrottle implements Throttle
      * Initializes this instance with the specified thresholds.
      * If either threshold is reached or exceeded, the throttle will become engaged, otherwise it is disengaged.
      *
-     * @param int $maxPerSecond Optional. Maximum number of promises per second.
+     * @param float $maxPerSecond Optional. Maximum number of promises per second.
      * @param int $maxConcurrency Optional. Maximum number of concurrent promises.
      */
     public function __construct(
-        int $maxPerSecond = self::DEFAULT_PER_SECOND,
+        float $maxPerSecond = self::DEFAULT_PER_SECOND,
         int $maxConcurrency = self::DEFAULT_CONCURRENCY
     ) {
         $this->maxPerSecond = $maxPerSecond;
@@ -144,12 +144,17 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Removes obsolete entries from the chrono stack. An entry is considered obsolete if it occurred more than one
-     * second ago.
+     * Removes obsolete entries from the chrono stack.
+     *
+     * When the maximum number of promises per second >= 1, an entry is considered obsolete when it occurred more than
+     * one second ago, otherwise it is obsolete when the reciprocal of the maximum number of promises per second has
+     * elapsed.
      */
     private function removeObsoleteChronoEntries(): void
     {
-        while (isset($this->chronoStack[0]) && $this->chronoStack[0] < self::getTime() - 1) {
+        while (isset($this->chronoStack[0]) &&
+            $this->chronoStack[0] < self::getTime() - max(1, 1 / $this->maxPerSecond)
+        ) {
             array_shift($this->chronoStack);
         }
     }
@@ -231,9 +236,9 @@ class DualThrottle implements Throttle
     /**
      * Gets the maximum number of promises that can be awaited per second.
      *
-     * @return int Maximum number of promises per second.
+     * @return float Maximum number of promises per second.
      */
-    public function getMaxPerSecond(): int
+    public function getMaxPerSecond(): float
     {
         return $this->maxPerSecond;
     }
@@ -241,9 +246,9 @@ class DualThrottle implements Throttle
     /**
      * Sets the maximum number of promises that can be awaited per second.
      *
-     * @param int $maxPerSecond Maximum number of promises per second.
+     * @param float $maxPerSecond Maximum number of promises per second.
      */
-    public function setMaxPerSecond(int $maxPerSecond): void
+    public function setMaxPerSecond(float $maxPerSecond): void
     {
         $this->maxPerSecond = $maxPerSecond;
     }
