@@ -3,17 +3,16 @@ declare(strict_types=1);
 
 namespace ScriptFUSIONTest\Async\Throttle;
 
-use Amp\PHPUnit\AsyncTestCase;
-use Amp\Success;
+use Amp\Future;
+use PHPUnit\Framework\TestCase;
 use ScriptFUSION\Async\Throttle\NullThrottle;
 
 /**
  * @see NullThrottle
  */
-final class NullThrottleTest extends AsyncTestCase
+final class NullThrottleTest extends TestCase
 {
-    /** @var NullThrottle */
-    private $throttle;
+    private NullThrottle $throttle;
 
     protected function setUp(): void
     {
@@ -22,14 +21,14 @@ final class NullThrottleTest extends AsyncTestCase
         $this->throttle = new NullThrottle;
     }
 
-    public function testAwait(): \Generator
+    public function testAwait(): void
     {
-        self::assertNull(yield $this->throttle->await(new Success()));
+        self::assertNull($this->throttle->await(Future::complete())->await());
     }
 
-    public function testJoin(): \Generator
+    public function testJoin(): void
     {
-        self::assertTrue(yield $this->throttle->join());
+        self::assertTrue($this->throttle->join()->await());
     }
 
     public function testIsThrottling(): void

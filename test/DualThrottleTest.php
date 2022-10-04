@@ -3,19 +3,19 @@ declare(strict_types=1);
 
 namespace ScriptFUSIONTest\Async\Throttle;
 
-use Amp\Delayed;
-use Amp\PHPUnit\AsyncTestCase;
-use Amp\Success;
+use Amp\Future;
+use PHPUnit\Framework\TestCase;
 use ScriptFUSION\Async\Throttle\DualThrottle;
 use ScriptFUSION\Async\Throttle\ThrottleOverloadException;
+use function Amp\async;
+use function Amp\delay;
 
 /**
  * @see DualThrottle
  */
-final class DualThrottleTest extends AsyncTestCase
+final class DualThrottleTest extends TestCase
 {
-    /** @var DualThrottle */
-    private $throttle;
+    private DualThrottle $throttle;
 
     protected function setUp(): void
     {
@@ -25,51 +25,51 @@ final class DualThrottleTest extends AsyncTestCase
     }
 
     /**
-     * Tests that when concurrency is limited to one, each promise resolves in serial.
+     * Tests that when concurrency is limited to one, each Future resolves in serial.
      */
-    public function testConcurrency(): \Generator
+    public function testConcurrency(): void
     {
         $this->throttle->setMaxConcurrency(1);
         $this->throttle->setMaxPerSecond(PHP_INT_MAX);
 
         $start = microtime(true);
-        for ($i = 1; $i <= $limit = 4; ++$i) {
-            yield $this->throttle->await(new Delayed($delay = 250));
+        for ($i = 1; $i <= 4; ++$i) {
+            $this->throttle->await(async(delay(...), $delay = .25))->await();
 
-            self::assertGreaterThan($lowerBound = $delay * $i / 1000, $time = microtime(true) - $start);
-            self::assertLessThan($lowerBound + .01, $time);
+            self::assertGreaterThan($lowerBound = $delay * $i, $time = microtime(true) - $start);
+            self::assertLessThan($lowerBound + .05, $time);
         }
 
         self::assertTrue(isset($time), 'Looped.');
     }
 
     /**
-     * Tests that 99 promises that resolve immediately are not throttled despite low concurrency limit.
+     * Tests that 99 Futures that resolve immediately are not throttled despite low concurrency limit.
      */
-    public function testThroughput(): \Generator
+    public function testThroughput(): void
     {
         $this->throttle->setMaxConcurrency(1);
         $this->throttle->setMaxPerSecond($max = 100);
 
         $start = microtime(true);
         for ($i = 0; $i < $max - 1; ++$i) {
-            yield $this->throttle->await(new Success());
+            $this->throttle->await(Future::complete())->await();
         }
 
-        self::assertLessThanOrEqual(.1, microtime(true) - $start);
+        self::assertLessThanOrEqual(.01, microtime(true) - $start);
     }
 
     /**
-     * Tests that 100 promises that resolve immediately are throttled only once the chrono threshold is hit.
+     * Tests that 100 Futures that resolve immediately are throttled only once the chrono threshold is hit.
      */
-    public function testThroughput2(): \Generator
+    public function testThroughput2(): void
     {
         $this->throttle->setMaxConcurrency(1);
         $this->throttle->setMaxPerSecond($max = 100);
 
         $start = microtime(true);
         for ($i = 0; $i < $max; ++$i) {
-            yield $this->throttle->await(new Success());
+            $this->throttle->await(Future::complete())->await();
         }
 
         self::assertGreaterThan(1, microtime(true) - $start);
@@ -77,131 +77,131 @@ final class DualThrottleTest extends AsyncTestCase
     }
 
     /**
-     * Tests that when concurrency is unbounded and the throughput is 1/sec, the specified number of promises,
-     * each resolving immediately, are throttled with one second delays between each.
+     * Tests that when concurrency is unbounded and the throughput is 1/sec, the specified number of Futures,
+     * each resolving immediately, are throttled with one-second delays between each.
      *
-     * @param int $promises Number of promises.
+     * @param int $futures Number of Futures.
      *
-     * @dataProvider providePromiseAmount
+     * @dataProvider provideFutureAmount
      */
-    public function testNPromisesThrottled(int $promises): \Generator
+    public function testNFuturesThrottled(int $futures): void
     {
         $this->throttle->setMaxConcurrency(PHP_INT_MAX);
         $this->throttle->setMaxPerSecond(1);
 
         $start = microtime(true);
-        for ($i = 0; $i < $promises; ++$i) {
-            yield $this->throttle->await(new Success());
+        for ($i = 0; $i < $futures; ++$i) {
+            $this->throttle->await(Future::complete())->await();
         }
 
-        self::assertGreaterThan($promises, $time = microtime(true) - $start, 'Minimum execution time.');
-        self::assertLessThan($promises + 1, $time, 'Maximum execution time.');
+        self::assertGreaterThan($futures, $time = microtime(true) - $start, 'Minimum execution time.');
+        self::assertLessThan($futures + 1, $time, 'Maximum execution time.');
     }
 
-    public function providePromiseAmount(): iterable
+    public function provideFutureAmount(): iterable
     {
-        yield 'One promise' => [1];
-        yield 'Two promises' => [2];
-        yield 'Three promises' => [3];
+        yield 'One Future' => [1];
+        yield 'Two Futures' => [2];
+        yield 'Three Futures' => [3];
     }
 
     /**
      * Tests that when concurrency is unbounded and the throughput is 1 per 2 seconds, the specified number of
-     * promises, each resolving immediately, are throttled with two second delays between each.
+     * Futures, each resolving immediately, are throttled with two-second delays between each.
      *
-     * @param int $promises Number of promises.
+     * @param int $futures Number of Futures.
      *
-     * @dataProvider providePromiseAmount
+     * @dataProvider provideFutureAmount
      */
-    public function testSlowThrottle(int $promises): \Generator
+    public function testSlowThrottle(int $futures): void
     {
         $this->throttle->setMaxConcurrency(PHP_INT_MAX);
         $this->throttle->setMaxPerSecond(1 / 2);
 
         $start = microtime(true);
-        for ($i = 0; $i < $promises; ++$i) {
-            yield $this->throttle->await(new Success());
+        for ($i = 0; $i < $futures; ++$i) {
+            $this->throttle->await(Future::complete())->await();
         }
 
-        self::assertGreaterThan($promises * 2, $time = microtime(true) - $start, 'Minimum execution time.');
-        self::assertLessThan($promises * 2 + 1, $time, 'Maximum execution time.');
+        self::assertGreaterThan($futures * 2, $time = microtime(true) - $start, 'Minimum execution time.');
+        self::assertLessThan($futures * 2 + 1, $time, 'Maximum execution time.');
     }
 
     /**
      * Tests that when throttle->await() is not yielded and the throttle is engaged, an exception is thrown.
      */
-    public function testThrottleAbuse(): \Generator
+    public function testThrottleAbuse(): void
     {
         $this->throttle->setMaxPerSecond(1);
 
         // Throttle is not engaged.
-        yield $this->throttle->await(new Success());
+        $this->throttle->await(Future::complete())->await();
         self::assertFalse($this->throttle->isThrottling());
 
         // Throttle is now engaged.
-        $this->throttle->await(new Success());
+        $this->throttle->await(Future::complete());
         self::assertTrue($this->throttle->isThrottling());
 
         // Throttle is still engaged, but we didn't yield the last await() operation.
         $this->expectException(ThrottleOverloadException::class);
-        $this->throttle->await(new Success());
+        $this->throttle->await(Future::complete());
     }
 
     /**
-     * Tests that when a burst of promises arrive at once, they are throttled according to the chrono limit.
+     * Tests that when a burst of Futures arrive at once, they are throttled according to the chrono limit.
      */
-    public function testBurst(): \Generator
+    public function testBurst(): void
     {
         $this->throttle->setMaxConcurrency(PHP_INT_MAX);
         $this->throttle->setMaxPerSecond(1);
 
         // Engage throttle.
-        $this->throttle->await(new Success());
+        $this->throttle->await(Future::complete());
         self::assertTrue($this->throttle->isThrottling());
 
         // Wait 3 seconds.
-        yield new Delayed(3000);
+        delay(3);
 
         $start = microtime(true);
 
         // First must be throttled despite last two seconds having no activity.
-        yield $this->throttle->await(new Success());
+        $this->throttle->await(Future::complete())->await();
 
         // Second must be throttled for one second.
-        yield $this->throttle->await(new Success());
+        $this->throttle->await(Future::complete())->await();
 
         self::assertGreaterThan(2, $time = microtime(true) - $start, 'Minimum execution time.');
         self::assertLessThan(3, $time, 'Maximum execution time.');
     }
 
     /**
-     * Tests that promises awaiting (not yet resolved) can be retrieved from the throttle and yielded.
+     * Tests that Futures awaiting (not yet resolved) can be retrieved from the throttle and yielded.
      */
-    public function testAwaiting(): \Generator
+    public function testAwaiting(): void
     {
         $this->throttle->setMaxConcurrency(3);
         $this->throttle->setMaxPerSecond(PHP_INT_MAX);
 
         $start = microtime(true);
-        $this->throttle->await($p1 = new Delayed(100));
-        $this->throttle->await($p2 = new Delayed(200));
-        $this->throttle->await($p3 = new Delayed($longest = 300));
+        $this->throttle->await($p1 = async(delay(...), .1));
+        $this->throttle->await($p2 = async(delay(...), .2));
+        $this->throttle->await($p3 = async(delay(...), $longest = .3));
 
         // Retrieve.
         $awaiting = $this->throttle->getAwaiting();
-        self::assertContains($p1, $awaiting, 'Promise #1.');
-        self::assertContains($p2, $awaiting, 'Promise #2.');
-        self::assertContains($p3, $awaiting, 'Promise #3.');
+        self::assertContains($p1, $awaiting, 'Future #1.');
+        self::assertContains($p2, $awaiting, 'Future #2.');
+        self::assertContains($p3, $awaiting, 'Future #3.');
 
         // Yield.
-        yield $awaiting;
-        self::assertGreaterThan($longest / 1000, microtime(true) - $start);
+        Future\await($awaiting);
+        self::assertGreaterThan($longest, microtime(true) - $start);
     }
 
     /**
      * Tests that the awaiting counter outputs correct values during throttle spin up and spin down.
      */
-    public function testCountAwaiting(): \Generator
+    public function testCountAwaiting(): void
     {
         $this->throttle->setMaxConcurrency($max = 10);
         $this->throttle->setMaxPerSecond(PHP_INT_MAX);
@@ -211,8 +211,7 @@ final class DualThrottleTest extends AsyncTestCase
         // Spin up.
         for ($count = 0; $count < $max; ++$count) {
             $this->throttle->await(
-                \Amp\Promise\wrap(
-                    new Delayed($count),
+                async(delay(...), $count)->map(
                     // Spin down.
                     function () use ($count, $max, &$countDown): void {
                         self::assertSame(
@@ -228,7 +227,7 @@ final class DualThrottleTest extends AsyncTestCase
         }
 
         self::assertSame($max, $this->throttle->countAwaiting(), 'Fully loaded.');
-        yield $this->throttle->getAwaiting();
+        Future\await($this->throttle->getAwaiting());
         self::assertSame(0, $this->throttle->countAwaiting(), 'Completely emptied.');
 
         self::assertSame(range(1, $max), $countUp, 'Count up.');
@@ -237,26 +236,24 @@ final class DualThrottleTest extends AsyncTestCase
 
     /**
      * Tests that when throttling, calling join() will wait until the throttle is cleared before continuing.
-     *
-     * @return \Generator
      */
-    public function testJoin(): \Generator
+    public function testJoin(): void
     {
         $this->throttle->setMaxConcurrency(1);
-        $this->throttle->await(new Delayed(0));
+        $this->throttle->await(Future::complete());
         self::assertTrue($this->throttle->isThrottling(), 'Throttle is throttling.');
 
         try {
-            $this->throttle->await(new Success());
+            $this->throttle->await(Future::complete());
         } catch (ThrottleOverloadException $exception) {
         }
-        self::assertTrue(isset($exception), 'Exception thrown trying to await another promise.');
+        self::assertTrue(isset($exception), 'Exception thrown trying to await another Future.');
 
-        self::assertFalse(yield $this->throttle->join(), 'Free slot unconfirmed.');
+        self::assertFalse($this->throttle->join()->await(), 'Free slot unconfirmed.');
         self::assertFalse($this->throttle->isThrottling(), 'Throttle is not actually throttling.');
-        self::assertTrue(yield $this->throttle->join(), 'Free slot confirmed.');
+        self::assertTrue($this->throttle->join()->await(), 'Free slot confirmed.');
 
-        $this->throttle->await(new Success());
+        $this->throttle->await(Future::complete());
     }
 
     /**

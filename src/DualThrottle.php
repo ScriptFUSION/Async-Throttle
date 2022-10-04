@@ -3,25 +3,24 @@ declare(strict_types=1);
 
 namespace ScriptFUSION\Async\Throttle;
 
-use Amp\Deferred;
-use Amp\Delayed;
-use Amp\Loop;
-use Amp\Promise;
-use Amp\Success;
+use Amp\DeferredFuture;
+use Amp\Future;
+use function Amp\async;
+use function Amp\delay;
 
 /**
- * Throttles promise throughput based on two independent thresholds: number of concurrently executing promises
- * and number of promises awaited per second.
+ * Throttles Future throughput based on two independent thresholds: number of concurrently executing Futures
+ * and number of Futures awaited per second.
  */
 class DualThrottle implements Throttle
 {
     /**
-     * Default maximum number of promises per second.
+     * Default maximum number of Futures per second.
      */
     public const DEFAULT_PER_SECOND = 75;
 
     /**
-     * Default maximum number of concurrent promises.
+     * Default maximum number of concurrent Futures.
      */
     public const DEFAULT_CONCURRENCY = 30;
 
@@ -31,36 +30,36 @@ class DualThrottle implements Throttle
     private const RETRY_DELAY = 100;
 
     /**
-     * @var Promise[] List of unresolved promises.
+     * @var Future[] List of unresolved Futures.
      */
-    private $awaiting = [];
+    private array $awaiting = [];
 
     /**
-     * @var Deferred|null Promise that blocks whilst the throttle is engaged.
+     * @var DeferredFuture|null Future that blocks whilst the throttle is engaged.
      */
-    private $throttle;
+    private ?DeferredFuture $throttle = null;
 
     /**
-     * @var int Maximum number of promises per second.
+     * @var int Maximum number of Futures per second.
      */
-    private $maxConcurrency;
+    private int $maxConcurrency;
 
     /**
-     * @var float Maximum number of concurrent promises.
+     * @var float Maximum number of concurrent Futures.
      */
-    private $maxPerSecond;
+    private float $maxPerSecond;
 
     /**
-     * @var array Stack of timestamps when each promise was awaited.
+     * @var array Stack of timestamps when each Future was awaited.
      */
-    private $chronoStack = [];
+    private array $chronoStack = [];
 
     /**
      * Initializes this instance with the specified thresholds.
      * If either threshold is reached or exceeded, the throttle will become engaged, otherwise it is disengaged.
      *
-     * @param float $maxPerSecond Optional. Maximum number of promises per second.
-     * @param int $maxConcurrency Optional. Maximum number of concurrent promises.
+     * @param float $maxPerSecond Optional. Maximum number of Futures per second.
+     * @param int $maxConcurrency Optional. Maximum number of concurrent Futures.
      */
     public function __construct(
         float $maxPerSecond = self::DEFAULT_PER_SECOND,
@@ -70,46 +69,46 @@ class DualThrottle implements Throttle
         $this->maxConcurrency = $maxConcurrency;
     }
 
-    public function await(Promise $promise): Promise
+    public function await(Future $future): Future
     {
         if ($this->isThrottling()) {
             throw new ThrottleOverloadException('Cannot await: throttle is engaged!');
         }
 
-        $this->watch($promise);
+        $this->watch($future);
 
         if ($this->tryDisengageThrottle()) {
-            /* Give consumers a chance to process the result before queuing another. Returning Success here forces
-             * the throttle to become engaged before any processing can be done by the caller on the results. */
-            return new Delayed(0);
+            /* Give consumers a chance to process the result before queuing another. Returning Future::complete here
+             * forces the throttle to become engaged before any processing can be done by the caller on the results. */
+            return async(delay(...), 0);
         }
 
-        $this->throttle = new Deferred;
+        $this->throttle = new DeferredFuture();
 
-        return $this->throttle->promise();
+        return $this->throttle->getFuture();
     }
 
-    public function join(): Promise
+    public function join(): Future
     {
         if ($this->isThrottling()) {
-            return $this->throttle->promise();
+            return $this->throttle->getFuture();
         }
 
-        return new Success(true);
+        return Future::complete(true);
     }
 
     /**
-     * Watches a promise to observe when it resolves.
+     * Watches a future to observe when it resolves.
      *
-     * @param Promise $promise Promise.
+     * @param Future $future Future.
      */
-    private function watch(Promise $promise): void
+    private function watch(Future $future): void
     {
         $this->chronoStack[] = self::getTime();
 
-        $this->awaiting[$hash = spl_object_hash($promise)] = $promise;
+        $this->awaiting[$hash = spl_object_hash($future)] = $future;
 
-        $promise->onResolve(function () use ($hash): void {
+        $future->finally(function () use ($hash): void {
             unset($this->awaiting[$hash]);
 
             $this->tryDisengageThrottle();
@@ -146,8 +145,8 @@ class DualThrottle implements Throttle
     /**
      * Removes obsolete entries from the chrono stack.
      *
-     * When the maximum number of promises per second >= 1, an entry is considered obsolete when it occurred more than
-     * one second ago, otherwise it is obsolete when the reciprocal of the maximum number of promises per second has
+     * When the maximum number of Futures per second >= 1, an entry is considered obsolete when it occurred more than
+     * one second ago, otherwise it is obsolete when the reciprocal of the maximum number of Futures per second has
      * elapsed.
      */
     private function removeObsoleteChronoEntries(): void
@@ -173,7 +172,7 @@ class DualThrottle implements Throttle
             // Disengage.
             if ($throttle = $this->throttle) {
                 $this->throttle = null;
-                $throttle->resolve(false);
+                $throttle->complete(false);
             }
 
             return true;
@@ -181,11 +180,9 @@ class DualThrottle implements Throttle
 
         // Above chrono threshold.
         if (!$belowChronoThreshold) {
-            // Schedule function to be called recursively.
-            Loop::delay(
-                self::RETRY_DELAY,
-                \Closure::fromCallable([$this, __FUNCTION__])
-            );
+            delay(self::RETRY_DELAY / 1000);
+            // Call self recursively.
+            $this->tryDisengageThrottle();
         }
 
         return false;
@@ -202,9 +199,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Measures promise throughput in promises/second.
+     * Measures Future throughput in Futures/second.
      *
-     * @return int Promises per second.
+     * @return int Futures per second.
      */
     public function measureThroughput(): int
     {
@@ -214,9 +211,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Gets the maximum number of concurrent promises that can be awaiting and unresolved.
+     * Gets the maximum number of concurrent Futures that can be awaiting and unresolved.
      *
-     * @return int Maximum number of concurrent promises.
+     * @return int Maximum number of concurrent Futures.
      */
     public function getMaxConcurrency(): int
     {
@@ -224,9 +221,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Sets the maximum number of concurrent promises that can be awaiting and unresolved.
+     * Sets the maximum number of concurrent Futures that can be awaiting and unresolved.
      *
-     * @param int $maxConcurrency Maximum number of concurrent promises.
+     * @param int $maxConcurrency Maximum number of concurrent Futures.
      */
     public function setMaxConcurrency(int $maxConcurrency): void
     {
@@ -234,9 +231,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Gets the maximum number of promises that can be awaited per second.
+     * Gets the maximum number of Futures that can be awaited per second.
      *
-     * @return float Maximum number of promises per second.
+     * @return float Maximum number of Futures per second.
      */
     public function getMaxPerSecond(): float
     {
@@ -244,9 +241,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Sets the maximum number of promises that can be awaited per second.
+     * Sets the maximum number of Futures that can be awaited per second.
      *
-     * @param float $maxPerSecond Maximum number of promises per second.
+     * @param float $maxPerSecond Maximum number of Futures per second.
      */
     public function setMaxPerSecond(float $maxPerSecond): void
     {

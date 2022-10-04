@@ -3,22 +3,21 @@ declare(strict_types=1);
 
 namespace ScriptFUSION\Async\Throttle;
 
-use Amp\Promise;
-use Amp\Success;
+use Amp\Future;
 
 /**
- * Throttle implementation that never throttles promise throughput.
+ * Throttle implementation that never throttles Future throughput.
  */
 final class NullThrottle implements Throttle
 {
-    public function await(Promise $promise): Promise
+    public function await(Future $future): Future
     {
-        return new Success();
+        return Future::complete();
     }
 
-    public function join(): Promise
+    public function join(): Future
     {
-        return new Success(true);
+        return Future::complete(true);
     }
 
     public function isThrottling(): bool
