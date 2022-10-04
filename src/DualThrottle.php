@@ -106,7 +106,7 @@ class DualThrottle implements Throttle
     {
         $this->chronoStack[] = self::getTime();
 
-        $this->awaiting[$hash = spl_object_hash($future)] = $future;
+        $this->awaiting[$hash = spl_object_id($future)] = $future;
 
         $future->finally(function () use ($hash): void {
             unset($this->awaiting[$hash]);
@@ -180,9 +180,12 @@ class DualThrottle implements Throttle
 
         // Above chrono threshold.
         if (!$belowChronoThreshold) {
-            delay(self::RETRY_DELAY / 1000);
-            // Call self recursively.
-            $this->tryDisengageThrottle();
+            // Schedule function to be called recursively.
+            async(function () {
+                delay(self::RETRY_DELAY / 1000);
+
+                $this->tryDisengageThrottle();
+            });
         }
 
         return false;
