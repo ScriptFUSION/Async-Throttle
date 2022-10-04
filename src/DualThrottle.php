@@ -25,9 +25,9 @@ class DualThrottle implements Throttle
     public const DEFAULT_CONCURRENCY = 30;
 
     /**
-     * Milliseconds to wait before reevaluating thresholds when above chrono threshold.
+     * Seconds to wait before reevaluating thresholds when above chrono threshold.
      */
-    private const RETRY_DELAY = 100;
+    private const RETRY_DELAY = .1;
 
     /**
      * @var Future[] List of unresolved Futures.
@@ -182,7 +182,7 @@ class DualThrottle implements Throttle
         if (!$belowChronoThreshold) {
             // Schedule function to be called recursively.
             async(function () {
-                delay(self::RETRY_DELAY / 1000);
+                delay(self::RETRY_DELAY);
 
                 $this->tryDisengageThrottle();
             });
