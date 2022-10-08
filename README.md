@@ -7,7 +7,7 @@ Async Throttle
 [![Test coverage][Coverage image]][Coverage]
 [![Code style][Style image]][Style]
 
-Throttles async object throughput.
+Throttles async work throughput.
 
 Version overview
 ----------------

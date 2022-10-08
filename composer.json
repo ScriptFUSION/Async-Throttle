@@ -1,6 +1,6 @@
 {
   "name": "async/throttle",
-  "description": "Throttles async object throughput.",
+  "description": "Throttles async work throughput.",
   "authors": [
     {
       "name": "Bilge",
