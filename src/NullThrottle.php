@@ -6,11 +6,11 @@ namespace ScriptFUSION\Async\Throttle;
 use Amp\Future;
 
 /**
- * Throttle implementation that never throttles work throughput.
+ * Throttle implementation that never throttles Future throughput.
  */
 final class NullThrottle implements Throttle
 {
-    public function watch(\Closure $unitOfWork, mixed ...$args): Future
+    public function watch(Future $future): Future
     {
         return Future::complete();
     }
