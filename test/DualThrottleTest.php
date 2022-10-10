@@ -256,6 +256,28 @@ final class DualThrottleTest extends TestCase
     }
 
     /**
+     * Tests that when multiple fibers are started at the same time, calling join() in a loop will prevent them from
+     * overloading the throttle.
+     */
+    public function testJoinMultiFiber(): void
+    {
+        $this->throttle->setMaxConcurrency(1);
+
+        $fiber = function () {
+            while (!$this->throttle->join()->await()) {
+                // Wait for free slot.
+            }
+
+            $this->throttle->watch(async(delay(...), 0))->await();
+        };
+
+        Future\await([async($fiber), async($fiber), async($fiber)]);
+
+        // ThrottleOverloadException is not thrown.
+        $this->expectNotToPerformAssertions();
+    }
+
+    /**
      * Tests that getters return the same values passed to setters.
      */
     public function testSetterRoundTrip(): void
