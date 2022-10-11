@@ -32,7 +32,7 @@ interface Throttle
      * @return Future<bool> A Future that resolves when the throttle is disengaged. True if watch() can be
      *     called, false if throttle may still be engaged.
      */
-    public function join(): Future;
+    public function join(): ?Future;
 
     /**
      * Gets a value indicating whether the throttle is currently engaged.

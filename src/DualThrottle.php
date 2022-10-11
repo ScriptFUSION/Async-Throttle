@@ -76,13 +76,13 @@ class DualThrottle implements Throttle
         return $this->throttle->getFuture();
     }
 
-    public function join(): Future
+    public function join(): ?Future
     {
         if ($this->isThrottling()) {
             return $this->throttle->getFuture();
         }
 
-        return Future::complete(true);
+        return null;
     }
 
     /**

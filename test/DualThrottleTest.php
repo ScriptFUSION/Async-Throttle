@@ -248,9 +248,9 @@ final class DualThrottleTest extends TestCase
         }
         self::assertTrue(isset($exception), 'Exception thrown trying to watch another Future.');
 
-        self::assertFalse($this->throttle->join()->await(), 'Free slot unconfirmed.');
+        self::assertFalse($this->throttle->join()?->await(), 'Free slot unconfirmed.');
         self::assertFalse($this->throttle->isThrottling(), 'Throttle is not actually throttling.');
-        self::assertTrue($this->throttle->join()->await(), 'Free slot confirmed.');
+        self::assertNull($this->throttle->join()?->await(), 'Free slot confirmed.');
 
         $this->throttle->watch(Future::complete());
     }
@@ -264,7 +264,7 @@ final class DualThrottleTest extends TestCase
         $this->throttle->setMaxConcurrency(1);
 
         $fiber = function () {
-            while (!$this->throttle->join()->await()) {
+            while (!($this->throttle->join()?->await() ?? true)) {
                 // Wait for free slot.
             }
 
