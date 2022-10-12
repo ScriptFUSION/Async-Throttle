@@ -33,7 +33,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 1; $i <= 4; ++$i) {
-            $this->throttle->watch(async(delay(...), $delay = .25))->await();
+            $this->throttle->watch(delay(...), $delay = .25)->await();
 
             self::assertGreaterThan($lowerBound = $delay * $i, $time = microtime(true) - $start);
             self::assertLessThan($lowerBound + .05, $time);
@@ -52,7 +52,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $max - 1; ++$i) {
-            $this->throttle->watch(Future::complete())->await();
+            $this->throttle->watch(fn () => null)->await();
         }
 
         self::assertLessThanOrEqual(.02, microtime(true) - $start);
@@ -68,7 +68,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $max; ++$i) {
-            $this->throttle->watch(Future::complete())->await();
+            $this->throttle->watch(fn () => null)->await();
         }
 
         self::assertGreaterThan(1, $time = microtime(true) - $start);
@@ -90,7 +90,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $futures; ++$i) {
-            $this->throttle->watch(Future::complete())->await();
+            $this->throttle->watch(fn () => null)->await();
         }
 
         self::assertGreaterThan($futures, $time = microtime(true) - $start, 'Minimum execution time.');
@@ -119,7 +119,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $futures; ++$i) {
-            $this->throttle->watch(Future::complete())->await();
+            $this->throttle->watch(fn () => null)->await();
         }
 
         self::assertGreaterThan($futures * 2, $time = microtime(true) - $start, 'Minimum execution time.');
@@ -135,15 +135,15 @@ final class DualThrottleTest extends TestCase
         $start = microtime(true);
 
         // Throttle is not engaged.
-        $this->throttle->watch(Future::complete())->await();
+        $this->throttle->watch(fn () => null)->await();
         self::assertFalse($this->throttle->isThrottling());
 
         // Throttle is now engaged because we don't await().
-        $this->throttle->watch(Future::complete());
+        $this->throttle->watch(fn () => null);
         self::assertTrue($this->throttle->isThrottling());
 
         // Throttle is no longer engaged despite not awaiting previous because we at least await this time.
-        $this->throttle->watch(Future::complete())->await();
+        $this->throttle->watch(fn () => null)->await();
         self::assertFalse($this->throttle->isThrottling());
 
         // Total time is still 3 seconds because suspensions guarantee throttle behaviour despite abuse.
@@ -159,7 +159,7 @@ final class DualThrottleTest extends TestCase
         $this->throttle->setMaxPerSecond(1);
 
         // Engage throttle.
-        $this->throttle->watch(Future::complete());
+        $this->throttle->watch(fn () => null);
         self::assertTrue($this->throttle->isThrottling());
 
         // Wait 3 seconds.
@@ -168,10 +168,10 @@ final class DualThrottleTest extends TestCase
         $start = microtime(true);
 
         // First must be throttled despite last two seconds having no activity.
-        $this->throttle->watch(Future::complete())->await();
+        $this->throttle->watch(fn () => null)->await();
 
         // Second must be throttled for one second.
-        $this->throttle->watch(Future::complete())->await();
+        $this->throttle->watch(fn () => null)->await();
 
         self::assertGreaterThan(2, $time = microtime(true) - $start, 'Minimum execution time.');
         self::assertLessThan(3, $time, 'Maximum execution time.');
@@ -182,19 +182,16 @@ final class DualThrottleTest extends TestCase
      */
     public function testWatching(): void
     {
-        $this->throttle->setMaxConcurrency(3);
+        $this->throttle->setMaxConcurrency($max = 3);
         $this->throttle->setMaxPerSecond(PHP_INT_MAX);
 
         $start = microtime(true);
-        $this->throttle->watch($f1 = async(delay(...), .1));
-        $this->throttle->watch($f2 = async(delay(...), .2));
-        $this->throttle->watch($f3 = async(delay(...), $longest = .3));
+        $this->throttle->watch(delay(...), .1);
+        $this->throttle->watch(delay(...), .2);
+        $this->throttle->watch(delay(...), $longest = .3);
 
-        self::assertCount(3, $awaiting = $this->throttle->getWatched());
-        self::assertSame(3, $this->throttle->countWatched());
-        self::assertContains($f1, $awaiting, 'Future #1.');
-        self::assertContains($f2, $awaiting, 'Future #2.');
-        self::assertContains($f3, $awaiting, 'Future #3.');
+        self::assertCount($max, $awaiting = $this->throttle->getWatched());
+        self::assertSame($max, $this->throttle->countWatched());
 
         Future\await($awaiting);
         self::assertGreaterThan($longest, microtime(true) - $start);
@@ -212,7 +209,7 @@ final class DualThrottleTest extends TestCase
 
         // Spin up.
         for ($count = 0; $count < $max; ++$count) {
-            $this->throttle->watch(async(
+            $this->throttle->watch(
                 function () use ($count, $max, &$countDown): void {
                     delay($count);
 
@@ -223,7 +220,7 @@ final class DualThrottleTest extends TestCase
                         "Count down iteration #$count."
                     );
                 }
-            ));
+            );
 
             self::assertSame($count + 1, $countUp[] = $this->throttle->countWatched(), "Count up iteration #$count.");
         }
@@ -238,17 +235,22 @@ final class DualThrottleTest extends TestCase
 
     /**
      * Tests that when multiple fibers are started at the same time, suspensions will prevent them overloading the
-     * throttle.
+     * throttle, and critically, each fiber starts at least one second apart.
      */
     public function testMultiFiberSuspensions(): void
     {
         $this->throttle->setMaxPerSecond(1);
 
-        $fiber = fn () => $this->throttle->watch(Future::complete())->await();
+        $fiber = fn () => $this->throttle->watch(fn () => microtime(true))->await();
 
         $start = microtime(true);
-        Future\await([async($fiber), async($fiber), async($fiber)]);
+        $time = Future\await([async($fiber), async($fiber), async($fiber)]);
+
         self::assertGreaterThan(3, microtime(true) - $start);
+        // This assumes fiber processing order is deterministic, which it is, because suspensions are queued.
+        self::assertLessThan(1, $time[0] - $start, 'First fiber is not throttled.');
+        self::assertGreaterThan(1, $time[1] - $time[0], 'Second fiber is at least one second behind the first.');
+        self::assertGreaterThan(1, $time[2] - $time[1], 'Third fiber is at least one second behind the second.');
     }
 
     /**

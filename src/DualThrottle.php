@@ -11,13 +11,13 @@ use function Amp\async;
 use function Amp\delay;
 
 /**
- * Throttles Future throughput based on two independent thresholds: number of concurrently executing Futures
- * and number of Futures watched per second.
+ * Throttles work throughput based on two independent thresholds: number of concurrently executing units of work
+ * and number of units of work watched per second.
  */
 class DualThrottle implements Throttle
 {
     /**
-     * Default maximum number of Futures per second.
+     * Default maximum number of units of work per second.
      */
     public const DEFAULT_PER_SECOND = 75;
 
@@ -42,12 +42,12 @@ class DualThrottle implements Throttle
     private ?DeferredFuture $throttle = null;
 
     /**
-     * @var array Stack of timestamps when each Future was watched.
+     * @var float[] Queue of timestamps when each Future was watched.
      */
     private array $chronoStack = [];
 
     /**
-     * @var Suspension[]
+     * @var Suspension[] Queue of fiber suspensions.
      */
     private array $suspensions = [];
 
@@ -55,8 +55,8 @@ class DualThrottle implements Throttle
      * Initializes this instance with the specified thresholds.
      * If either threshold is reached or exceeded, the throttle will become engaged, otherwise it is disengaged.
      *
-     * @param float $maxPerSecond Optional. Maximum number of Futures per second.
-     * @param int $maxConcurrency Optional. Maximum number of concurrent Futures.
+     * @param float $maxPerSecond Optional. Maximum number of watched units of work per second.
+     * @param int $maxConcurrency Optional. Maximum number of concurrent units of work.
      */
     public function __construct(
         private float $maxPerSecond = self::DEFAULT_PER_SECOND,
@@ -64,7 +64,7 @@ class DualThrottle implements Throttle
     ) {
     }
 
-    public function watch(Future $future): Future
+    public function watch(\Closure $unitOfWork, mixed ...$args): Future
     {
         if ($this->isThrottling()) {
             // Suspend caller because we cannot allow any more throughput. This does not occur under normal conditions
@@ -72,15 +72,15 @@ class DualThrottle implements Throttle
             ($this->suspensions[] = EventLoop::getSuspension())->suspend();
         }
 
-        $this->watchUntilComplete($future);
+        $this->watchUntilComplete($future = async($unitOfWork, ...$args));
 
         if ($this->tryDisengageThrottle()) {
-            return Future::complete();
+            return $future;
         }
 
         $this->throttle = new DeferredFuture();
 
-        return $this->throttle->getFuture();
+        return $this->throttle->getFuture()->map(static fn () => $future->await());
     }
 
     /**
@@ -131,9 +131,9 @@ class DualThrottle implements Throttle
     /**
      * Removes obsolete entries from the chrono stack.
      *
-     * When the maximum number of Futures per second >= 1, an entry is considered obsolete when it occurred more than
-     * one second ago, otherwise it is obsolete when the reciprocal of the maximum number of Futures per second has
-     * elapsed.
+     * When the maximum number of units of work per second >= 1, an entry is considered obsolete when it occurred more
+     * than one second ago, otherwise it is obsolete when the reciprocal of the maximum number of units of work per
+     * second has elapsed.
      */
     private function removeObsoleteChronoEntries(): void
     {
@@ -169,7 +169,7 @@ class DualThrottle implements Throttle
         // Above chrono threshold.
         if (!$belowChronoThreshold) {
             // Schedule recursive call to eventually disengage throttle.
-            async(function () {
+            async(function (): void {
                 delay(self::RETRY_DELAY);
 
                 $this->tryDisengageThrottle();
@@ -190,9 +190,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Measures Future throughput in Futures/second.
+     * Measures work throughput in units of work per second.
      *
-     * @return int Futures per second.
+     * @return int Units of work per second.
      */
     public function measureThroughput(): int
     {
@@ -202,9 +202,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Gets the maximum number of concurrent Futures that can be watched and unresolved.
+     * Gets the maximum number of concurrent units of work that can be watched and incomplete.
      *
-     * @return int Maximum number of concurrent Futures.
+     * @return int Maximum number of concurrent units of work.
      */
     public function getMaxConcurrency(): int
     {
@@ -212,9 +212,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Sets the maximum number of concurrent Futures that can be watched and unresolved.
+     * Sets the maximum number of concurrent units of work that can be watched and incomplete.
      *
-     * @param int $maxConcurrency Maximum number of concurrent Futures.
+     * @param int $maxConcurrency Maximum number of concurrent units of work.
      */
     public function setMaxConcurrency(int $maxConcurrency): void
     {
@@ -222,9 +222,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Gets the maximum number of Futures that can be watched per second.
+     * Gets the maximum number of units of work that can be watched per second.
      *
-     * @return float Maximum number of Futures per second.
+     * @return float Maximum number of units of work per second.
      */
     public function getMaxPerSecond(): float
     {
@@ -232,9 +232,9 @@ class DualThrottle implements Throttle
     }
 
     /**
-     * Sets the maximum number of Futures that can be watched per second.
+     * Sets the maximum number of units of work that can be watched per second.
      *
-     * @param float $maxPerSecond Maximum number of Futures per second.
+     * @param float $maxPerSecond Maximum number of units of work per second.
      */
     public function setMaxPerSecond(float $maxPerSecond): void
     {
