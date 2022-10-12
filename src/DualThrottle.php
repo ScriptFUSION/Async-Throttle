@@ -5,6 +5,8 @@ namespace ScriptFUSION\Async\Throttle;
 
 use Amp\DeferredFuture;
 use Amp\Future;
+use Revolt\EventLoop;
+use Revolt\EventLoop\Suspension;
 use function Amp\async;
 use function Amp\delay;
 
@@ -45,6 +47,11 @@ class DualThrottle implements Throttle
     private array $chronoStack = [];
 
     /**
+     * @var Suspension[]
+     */
+    private array $suspensions = [];
+
+    /**
      * Initializes this instance with the specified thresholds.
      * If either threshold is reached or exceeded, the throttle will become engaged, otherwise it is disengaged.
      *
@@ -60,29 +67,20 @@ class DualThrottle implements Throttle
     public function watch(Future $future): Future
     {
         if ($this->isThrottling()) {
-            throw new ThrottleOverloadException('Cannot watch: throttle is engaged!');
+            // Suspend caller because we cannot allow any more throughput. This does not occur under normal conditions
+            // but will occur if the caller forgets to await() or if multiple fibers try to use the same throttle.
+            ($this->suspensions[] = EventLoop::getSuspension())->suspend();
         }
 
         $this->watchUntilComplete($future);
 
         if ($this->tryDisengageThrottle()) {
-            /* Give consumers a chance to process the result before queuing another. Returning Future::complete here
-             * forces the throttle to become engaged before any processing can be done by the caller on the results. */
-            return async(delay(...), 0);
+            return Future::complete();
         }
 
         $this->throttle = new DeferredFuture();
 
         return $this->throttle->getFuture();
-    }
-
-    public function join(): Future
-    {
-        if ($this->isThrottling()) {
-            return $this->throttle->getFuture();
-        }
-
-        return Future::complete(true);
     }
 
     /**
@@ -160,7 +158,9 @@ class DualThrottle implements Throttle
             // Disengage.
             if ($throttle = $this->throttle) {
                 $this->throttle = null;
-                $throttle->complete(false);
+                $throttle->complete();
+
+                array_shift($this->suspensions)?->resume();
             }
 
             return true;

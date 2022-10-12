@@ -26,11 +26,6 @@ final class NullThrottleTest extends TestCase
         self::assertNull($this->throttle->watch(Future::complete())->await());
     }
 
-    public function testJoin(): void
-    {
-        self::assertTrue($this->throttle->join()->await());
-    }
-
     public function testIsThrottling(): void
     {
         self::assertFalse($this->throttle->isThrottling());

@@ -15,11 +15,6 @@ final class NullThrottle implements Throttle
         return Future::complete();
     }
 
-    public function join(): Future
-    {
-        return Future::complete(true);
-    }
-
     public function isThrottling(): bool
     {
         return false;

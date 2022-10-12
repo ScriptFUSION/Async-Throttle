@@ -6,7 +6,6 @@ namespace ScriptFUSIONTest\Async\Throttle;
 use Amp\Future;
 use PHPUnit\Framework\TestCase;
 use ScriptFUSION\Async\Throttle\DualThrottle;
-use ScriptFUSION\Async\Throttle\ThrottleOverloadException;
 use function Amp\async;
 use function Amp\delay;
 
@@ -128,23 +127,27 @@ final class DualThrottleTest extends TestCase
     }
 
     /**
-     * Tests that when throttle->watch() is not awaited and the throttle is engaged, an exception is thrown.
+     * Tests that when throttle->watch() is not awaited and the throttle is engaged, we get suspended.
      */
     public function testThrottleAbuse(): void
     {
         $this->throttle->setMaxPerSecond(1);
+        $start = microtime(true);
 
         // Throttle is not engaged.
         $this->throttle->watch(Future::complete())->await();
         self::assertFalse($this->throttle->isThrottling());
 
-        // Throttle is now engaged.
+        // Throttle is now engaged because we don't await().
         $this->throttle->watch(Future::complete());
         self::assertTrue($this->throttle->isThrottling());
 
-        // Throttle is still engaged, but we didn't await the last watch() operation.
-        $this->expectException(ThrottleOverloadException::class);
-        $this->throttle->watch(Future::complete());
+        // Throttle is no longer engaged despite not awaiting previous because we at least await this time.
+        $this->throttle->watch(Future::complete())->await();
+        self::assertFalse($this->throttle->isThrottling());
+
+        // Total time is still 3 seconds because suspensions guarantee throttle behaviour despite abuse.
+        self::assertGreaterThan(3, microtime(true) - $start);
     }
 
     /**
@@ -234,47 +237,18 @@ final class DualThrottleTest extends TestCase
     }
 
     /**
-     * Tests that when throttling, calling join() will wait until the throttle is cleared before continuing.
+     * Tests that when multiple fibers are started at the same time, suspensions will prevent them overloading the
+     * throttle.
      */
-    public function testJoin(): void
+    public function testMultiFiberSuspensions(): void
     {
-        $this->throttle->setMaxConcurrency(1);
-        $this->throttle->watch(Future::complete());
-        self::assertTrue($this->throttle->isThrottling(), 'Throttle is throttling.');
+        $this->throttle->setMaxPerSecond(1);
 
-        try {
-            $this->throttle->watch(Future::complete());
-        } catch (ThrottleOverloadException $exception) {
-        }
-        self::assertTrue(isset($exception), 'Exception thrown trying to watch another Future.');
+        $fiber = fn () => $this->throttle->watch(Future::complete())->await();
 
-        self::assertFalse($this->throttle->join()->await(), 'Free slot unconfirmed.');
-        self::assertFalse($this->throttle->isThrottling(), 'Throttle is not actually throttling.');
-        self::assertTrue($this->throttle->join()->await(), 'Free slot confirmed.');
-
-        $this->throttle->watch(Future::complete());
-    }
-
-    /**
-     * Tests that when multiple fibers are started at the same time, calling join() in a loop will prevent them from
-     * overloading the throttle.
-     */
-    public function testJoinMultiFiber(): void
-    {
-        $this->throttle->setMaxConcurrency(1);
-
-        $fiber = function () {
-            while (!$this->throttle->join()->await()) {
-                // Wait for free slot.
-            }
-
-            $this->throttle->watch(async(delay(...), 0))->await();
-        };
-
+        $start = microtime(true);
         Future\await([async($fiber), async($fiber), async($fiber)]);
-
-        // ThrottleOverloadException is not thrown.
-        $this->expectNotToPerformAssertions();
+        self::assertGreaterThan(3, microtime(true) - $start);
     }
 
     /**

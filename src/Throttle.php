@@ -18,21 +18,8 @@ interface Throttle
      * @param Future $future Future.
      *
      * @return Future A Future that resolves when the throttle disengages.
-     *
-     * @throws ThrottleOverloadException The throttle would be overloaded by watching the unit of work.
      */
     public function watch(Future $future): Future;
-
-    /**
-     * Joins the primary fiber with a secondary fiber such that the secondary fiber will be throttled if the primary is
-     * throttled, otherwise continues immediately. This method should be called continuously until it returns true,
-     * otherwise two or more joining fibers may falsely assume they can use the throttle when there is only capacity
-     * for one more. It is safe to call watch() immediately after this method returns true.
-     *
-     * @return Future<bool> A Future that resolves when the throttle is disengaged. True if watch() can be
-     *     called, false if throttle may still be engaged.
-     */
-    public function join(): Future;
 
     /**
      * Gets a value indicating whether the throttle is currently engaged.
