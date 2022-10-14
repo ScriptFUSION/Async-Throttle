@@ -55,7 +55,7 @@ final class DualThrottleTest extends TestCase
             $this->throttle->watch(fn () => null)->await();
         }
 
-        self::assertLessThanOrEqual(.02, microtime(true) - $start);
+        self::assertLessThanOrEqual(.04, microtime(true) - $start);
     }
 
     /**

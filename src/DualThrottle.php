@@ -78,13 +78,14 @@ class DualThrottle implements Throttle
             return $future;
         }
 
+        assert($this->throttle === null, 'Final unit of work may not overwrite any previous still awaiting.');
         $this->throttle = new DeferredFuture();
 
         return $this->throttle->getFuture()->map(static fn () => $future->await());
     }
 
     /**
-     * Watches a Future until it completes.
+     * Watches the specified Future until it completes.
      *
      * @param Future $future Future.
      */
