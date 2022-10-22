@@ -64,7 +64,7 @@ class DualThrottle implements Throttle
     ) {
     }
 
-    public function watch(\Closure $unitOfWork, mixed ...$args): Future
+    public function async(\Closure $unitOfWork, mixed ...$args): Future
     {
         if ($this->isThrottling()) {
             // Suspend caller because we cannot allow any more throughput. This does not occur under normal conditions
@@ -114,7 +114,7 @@ class DualThrottle implements Throttle
      */
     private function isBelowConcurrencyThreshold(): bool
     {
-        return $this->countWatched() < $this->maxConcurrency;
+        return $this->countPending() < $this->maxConcurrency;
     }
 
     /**
@@ -180,12 +180,12 @@ class DualThrottle implements Throttle
         return false;
     }
 
-    public function getWatched(): array
+    public function getPending(): array
     {
         return $this->watching;
     }
 
-    public function countWatched(): int
+    public function countPending(): int
     {
         return \count($this->watching);
     }

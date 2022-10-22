@@ -22,7 +22,7 @@ final class NullThrottleTest extends TestCase
 
     public function testAwait(): void
     {
-        self::assertSame($data = random_bytes(8), $this->throttle->watch(fn () => $data)->await());
+        self::assertSame($data = random_bytes(8), $this->throttle->async(fn () => $data)->await());
     }
 
     public function testIsThrottling(): void
@@ -32,11 +32,11 @@ final class NullThrottleTest extends TestCase
 
     public function testGetAwaiting(): void
     {
-        self::assertEmpty($this->throttle->getWatched());
+        self::assertEmpty($this->throttle->getPending());
     }
 
     public function testCountAwaiting(): void
     {
-        self::assertSame(0, $this->throttle->countWatched());
+        self::assertSame(0, $this->throttle->countPending());
     }
 }

@@ -11,7 +11,7 @@ use function Amp\async;
  */
 final class NullThrottle implements Throttle
 {
-    public function watch(\Closure $unitOfWork, mixed ...$args): Future
+    public function async(\Closure $unitOfWork, mixed ...$args): Future
     {
         return async($unitOfWork, ...$args);
     }
@@ -21,12 +21,12 @@ final class NullThrottle implements Throttle
         return false;
     }
 
-    public function getWatched(): array
+    public function getPending(): array
     {
         return [];
     }
 
-    public function countWatched(): int
+    public function countPending(): int
     {
         return 0;
     }

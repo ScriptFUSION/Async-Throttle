@@ -33,7 +33,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 1; $i <= 4; ++$i) {
-            $this->throttle->watch(delay(...), $delay = .25)->await();
+            $this->throttle->async(delay(...), $delay = .25)->await();
 
             self::assertGreaterThan($lowerBound = $delay * $i, $time = microtime(true) - $start);
             self::assertLessThan($lowerBound + .05, $time);
@@ -52,7 +52,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $max - 1; ++$i) {
-            $this->throttle->watch(fn () => null)->await();
+            $this->throttle->async(fn () => null)->await();
         }
 
         self::assertLessThanOrEqual(.04, microtime(true) - $start);
@@ -68,7 +68,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $max; ++$i) {
-            $this->throttle->watch(fn () => null)->await();
+            $this->throttle->async(fn () => null)->await();
         }
 
         self::assertGreaterThan(1, $time = microtime(true) - $start);
@@ -90,7 +90,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $futures; ++$i) {
-            $this->throttle->watch(fn () => null)->await();
+            $this->throttle->async(fn () => null)->await();
         }
 
         self::assertGreaterThan($futures, $time = microtime(true) - $start, 'Minimum execution time.');
@@ -119,7 +119,7 @@ final class DualThrottleTest extends TestCase
 
         $start = microtime(true);
         for ($i = 0; $i < $futures; ++$i) {
-            $this->throttle->watch(fn () => null)->await();
+            $this->throttle->async(fn () => null)->await();
         }
 
         self::assertGreaterThan($futures * 2, $time = microtime(true) - $start, 'Minimum execution time.');
@@ -135,15 +135,15 @@ final class DualThrottleTest extends TestCase
         $start = microtime(true);
 
         // Throttle is not engaged.
-        $this->throttle->watch(fn () => null)->await();
+        $this->throttle->async(fn () => null)->await();
         self::assertFalse($this->throttle->isThrottling());
 
         // Throttle is now engaged because we don't await().
-        $this->throttle->watch(fn () => null);
+        $this->throttle->async(fn () => null);
         self::assertTrue($this->throttle->isThrottling());
 
         // Throttle is no longer engaged despite not awaiting previous because we at least await this time.
-        $this->throttle->watch(fn () => null)->await();
+        $this->throttle->async(fn () => null)->await();
         self::assertFalse($this->throttle->isThrottling());
 
         // Total time is still 3 seconds because suspensions guarantee throttle behaviour despite abuse.
@@ -159,7 +159,7 @@ final class DualThrottleTest extends TestCase
         $this->throttle->setMaxPerSecond(1);
 
         // Engage throttle.
-        $this->throttle->watch(fn () => null);
+        $this->throttle->async(fn () => null);
         self::assertTrue($this->throttle->isThrottling());
 
         // Wait 3 seconds.
@@ -168,10 +168,10 @@ final class DualThrottleTest extends TestCase
         $start = microtime(true);
 
         // First must be throttled despite last two seconds having no activity.
-        $this->throttle->watch(fn () => null)->await();
+        $this->throttle->async(fn () => null)->await();
 
         // Second must be throttled for one second.
-        $this->throttle->watch(fn () => null)->await();
+        $this->throttle->async(fn () => null)->await();
 
         self::assertGreaterThan(2, $time = microtime(true) - $start, 'Minimum execution time.');
         self::assertLessThan(3, $time, 'Maximum execution time.');
@@ -186,12 +186,12 @@ final class DualThrottleTest extends TestCase
         $this->throttle->setMaxPerSecond(PHP_INT_MAX);
 
         $start = microtime(true);
-        $this->throttle->watch(delay(...), .1);
-        $this->throttle->watch(delay(...), .2);
-        $this->throttle->watch(delay(...), $longest = .3);
+        $this->throttle->async(delay(...), .1);
+        $this->throttle->async(delay(...), .2);
+        $this->throttle->async(delay(...), $longest = .3);
 
-        self::assertCount($max, $awaiting = $this->throttle->getWatched());
-        self::assertSame($max, $this->throttle->countWatched());
+        self::assertCount($max, $awaiting = $this->throttle->getPending());
+        self::assertSame($max, $this->throttle->countPending());
 
         Future\await($awaiting);
         self::assertGreaterThan($longest, microtime(true) - $start);
@@ -209,25 +209,25 @@ final class DualThrottleTest extends TestCase
 
         // Spin up.
         for ($count = 0; $count < $max; ++$count) {
-            $this->throttle->watch(
+            $this->throttle->async(
                 function () use ($count, $max, &$countDown): void {
                     delay($count);
 
                     // Spin down.
                     self::assertSame(
                         $max - $count,
-                        $countDown[] = $this->throttle->countWatched(),
+                        $countDown[] = $this->throttle->countPending(),
                         "Count down iteration #$count."
                     );
                 }
             );
 
-            self::assertSame($count + 1, $countUp[] = $this->throttle->countWatched(), "Count up iteration #$count.");
+            self::assertSame($count + 1, $countUp[] = $this->throttle->countPending(), "Count up iteration #$count.");
         }
 
-        self::assertSame($max, $this->throttle->countWatched(), 'Fully loaded.');
-        Future\await($this->throttle->getWatched());
-        self::assertSame(0, $this->throttle->countWatched(), 'Completely emptied.');
+        self::assertSame($max, $this->throttle->countPending(), 'Fully loaded.');
+        Future\await($this->throttle->getPending());
+        self::assertSame(0, $this->throttle->countPending(), 'Completely emptied.');
 
         self::assertSame(range(1, $max), $countUp, 'Count up.');
         self::assertSame(range($max, 1), $countDown, 'Count down.');
@@ -241,7 +241,7 @@ final class DualThrottleTest extends TestCase
     {
         $this->throttle->setMaxPerSecond(1);
 
-        $fiber = fn () => $this->throttle->watch(fn () => microtime(true))->await();
+        $fiber = fn () => $this->throttle->async(fn () => microtime(true))->await();
 
         $start = microtime(true);
         $time = Future\await([async($fiber), async($fiber), async($fiber)]);

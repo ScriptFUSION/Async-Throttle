@@ -11,16 +11,16 @@ use Amp\Future;
 interface Throttle
 {
     /**
-     * Watches the specified unit of work. When the throttle is engaged, returns a Future that will not resolve until
-     * the throttle disengages. When the throttle is disengaged, returns a Future that will resolve in the next tick.
-     * The returned future should always be awaited immediately to avoid overloading the throttle.
+     * Runs the specified unit of work asynchronously on a separate fiber. When the throttle is disengaged, returns a
+     * Future that will complete when the unit of work completes. When the throttle is engaged, returns a Future that
+     * completes when the throttle disengages and the unit of work has completed.
      *
      * @param \Closure $unitOfWork Unit of work.
      * @param mixed $args Optional. Arguments to pass to the unit of work closure.
      *
-     * @return Future A Future that resolves when the throttle disengages.
+     * @return Future A Future that completes with the return value of the unit of work after the throttle disengages.
      */
-    public function watch(\Closure $unitOfWork, mixed ...$args): Future;
+    public function async(\Closure $unitOfWork, mixed ...$args): Future;
 
     /**
      * Gets a value indicating whether the throttle is currently engaged.
@@ -32,16 +32,16 @@ interface Throttle
     public function isThrottling(): bool;
 
     /**
-     * Gets the watched units of work that have not yet completed, as a list of Futures.
+     * Gets the list of pending Futures that have not yet completed.
      *
-     * @return Future[] List of incomplete units of work.
+     * @return Future[] List of pending Futures.
      */
-    public function getWatched(): array;
+    public function getPending(): array;
 
     /**
-     * Counts the number of watched units of work that have not yet resolved.
+     * Counts the number of pending Futures that have not yet completed.
      *
-     * @return int Number of watched units of work.
+     * @return int Number of pending Futures.
      */
-    public function countWatched(): int;
+    public function countPending(): int;
 }
