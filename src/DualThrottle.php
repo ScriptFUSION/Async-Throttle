@@ -99,7 +99,7 @@ class DualThrottle implements Throttle
             unset($this->watching[$hash]);
 
             $this->tryDisengageThrottle();
-        });
+        })->ignore();
     }
 
     public function isThrottling(): bool

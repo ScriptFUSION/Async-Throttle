@@ -264,4 +264,16 @@ final class DualThrottleTest extends TestCase
         $this->throttle->setMaxPerSecond($chrono = 456.);
         self::assertSame($chrono, $this->throttle->getMaxPerSecond());
     }
+
+    /**
+     * Tests that when the unit of work throws an exception, the same exception is caught and no unhandled exceptions
+     * occur in the underlying library.
+     */
+    public function testThrow(): void
+    {
+        $this->throttle->setMaxConcurrency(1);
+
+        $this->expectExceptionObject($exception = new \Exception());
+        $this->throttle->async(fn () => throw $exception)->await();
+    }
 }
