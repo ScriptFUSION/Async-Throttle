@@ -72,7 +72,7 @@ class DualThrottle implements Throttle
             ($this->suspensions[] = EventLoop::getSuspension())->suspend();
         }
 
-        $this->watchUntilComplete($future = async($unitOfWork, ...$args));
+        $future = $this->watchUntilComplete(async($unitOfWork, ...$args));
 
         if ($this->tryDisengageThrottle()) {
             return $future;
@@ -89,17 +89,17 @@ class DualThrottle implements Throttle
      *
      * @param Future $future Future.
      */
-    private function watchUntilComplete(Future $future): void
+    private function watchUntilComplete(Future $future): Future
     {
         $this->chronoStack[] = self::getTime();
 
         $this->watching[$hash = spl_object_id($future)] = $future;
 
-        $future->finally(function () use ($hash): void {
+        return $future->finally(function () use ($hash): void {
             unset($this->watching[$hash]);
 
             $this->tryDisengageThrottle();
-        })->ignore();
+        });
     }
 
     public function isThrottling(): bool
