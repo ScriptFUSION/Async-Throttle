@@ -61,7 +61,7 @@ final class DualThrottleTest extends TestCase
     /**
      * Tests that 100 Futures that resolve immediately are throttled only once the chrono threshold is hit.
      */
-    public function testThroughput2(): void
+    public function testThroughputThrottled(): void
     {
         $this->throttle->setMaxConcurrency(1);
         $this->throttle->setMaxPerSecond($max = 100);
@@ -237,20 +237,40 @@ final class DualThrottleTest extends TestCase
      * Tests that when multiple fibers are started at the same time, suspensions will prevent them overloading the
      * throttle, and critically, each fiber starts at least one second apart.
      */
-    public function testMultiFiberSuspensions(): void
+    public function testSuspensions(): void
     {
         $this->throttle->setMaxPerSecond(1);
 
-        $fiber = fn () => $this->throttle->async(fn () => microtime(true))->await();
+        $work = fn () => $this->throttle->async(fn () => microtime(true))->await();
 
         $start = microtime(true);
-        $time = Future\await([async($fiber), async($fiber), async($fiber)]);
+        $time = Future\await([async($work), async($work), async($work)]);
 
         self::assertGreaterThan(3, microtime(true) - $start);
         // This assumes fiber processing order is deterministic, which it is, because suspensions are queued.
         self::assertLessThan(1, $time[0] - $start, 'First fiber is not throttled.');
-        self::assertGreaterThan(1, $time[1] - $time[0], 'Second fiber is at least one second behind the first.');
-        self::assertGreaterThan(1, $time[2] - $time[1], 'Third fiber is at least one second behind the second.');
+        self::assertGreaterThan(1, $time[1] - $time[0], 'Second fiber is at least one second after the first.');
+        self::assertGreaterThan(1, $time[2] - $time[1], 'Third fiber is at least one second after the second.');
+    }
+
+    /**
+     * Tests that when multiple fibers are started at the same time and run concurrently, suspensions prevent them
+     * overloading the throttle.
+     */
+    public function testConcurrentSuspensions(): void
+    {
+        $this->throttle->setMaxPerSecond(2);
+
+        $work = fn () => $this->throttle->async(fn () => microtime(true))->await();
+
+        $start = microtime(true);
+        $time = Future\await([async($work), async($work), async($work), async($work)]);
+
+        self::assertGreaterThan(2, microtime(true) - $start);
+        self::assertLessThan(1, $time[0] - $start, 'First two fibers are not throttled.');
+        self::assertLessThan(1, $time[1] - $start, 'First two fibers are not throttled.');
+        self::assertGreaterThan(1, $time[2] - $time[0], 'Second two fibers are at least one second after the first.');
+        self::assertGreaterThan(1, $time[3] - $time[1], 'Second two fibers are at least one second after the first.');
     }
 
     /**

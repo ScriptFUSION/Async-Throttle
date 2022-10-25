@@ -102,7 +102,9 @@ class DualThrottle implements Throttle
         return $future->finally(function () use ($hash): void {
             unset($this->watching[$hash]);
 
-            $this->tryDisengageThrottle();
+            if ($this->tryDisengageThrottle()) {
+                $this->tryResumeFiber();
+            }
         });
     }
 
@@ -170,7 +172,7 @@ class DualThrottle implements Throttle
                     $this->chronoLock = null;
                 }
 
-                array_shift($this->suspensions)?->resume();
+                $this->tryResumeFiber();
             }
 
             return true;
@@ -185,6 +187,14 @@ class DualThrottle implements Throttle
         }
 
         return false;
+    }
+
+    /**
+     * Resumes one suspended fiber if at least one suspension exists, otherwise does nothing.
+     */
+    private function tryResumeFiber(): void
+    {
+        array_shift($this->suspensions)?->resume();
     }
 
     public function getPending(): array
