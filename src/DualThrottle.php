@@ -8,7 +8,6 @@ use Amp\Future;
 use Revolt\EventLoop;
 use Revolt\EventLoop\Suspension;
 use function Amp\async;
-use function Amp\delay;
 
 /**
  * Throttles work throughput based on two independent thresholds: number of concurrently executing units of work
@@ -40,6 +39,11 @@ class DualThrottle implements Throttle
      * @var DeferredFuture|null Future that blocks whilst the throttle is engaged.
      */
     private ?DeferredFuture $throttle = null;
+
+    /**
+     * @var string|null Mutually exclusive lock that precludes concurrent disengagement attempts.
+     */
+    private ?string $chronoLock = null;
 
     /**
      * @var float[] Queue of timestamps when each Future was watched.
@@ -161,6 +165,11 @@ class DualThrottle implements Throttle
                 $this->throttle = null;
                 $throttle->complete();
 
+                if ($this->chronoLock) {
+                    EventLoop::cancel($this->chronoLock);
+                    $this->chronoLock = null;
+                }
+
                 array_shift($this->suspensions)?->resume();
             }
 
@@ -170,9 +179,7 @@ class DualThrottle implements Throttle
         // Above chrono threshold.
         if (!$belowChronoThreshold) {
             // Schedule recursive call to eventually disengage throttle.
-            async(function (): void {
-                delay(self::RETRY_DELAY);
-
+            $this->chronoLock ??= EventLoop::repeat(self::RETRY_DELAY, function (): void {
                 $this->tryDisengageThrottle();
             });
         }
