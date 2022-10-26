@@ -274,6 +274,20 @@ final class DualThrottleTest extends TestCase
     }
 
     /**
+     * Tests that when multiple suspended fibers are resumed at the same time, only one ultimately proceeds to engage
+     * the throttle at a time (to avoid triggering the assertion).
+     */
+    public function testSimultaneousResume(): void
+    {
+        $this->throttle->setMaxConcurrency(1);
+
+        $work = fn () => $this->throttle->async(fn () => null)->await();
+
+        $this->expectNotToPerformAssertions();
+        Future\await([async($work), async($work), async($work)]);
+    }
+
+    /**
      * Tests that getters return the same values passed to setters.
      */
     public function testSetterRoundTrip(): void

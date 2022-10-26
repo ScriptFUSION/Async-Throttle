@@ -70,7 +70,7 @@ class DualThrottle implements Throttle
 
     public function async(\Closure $unitOfWork, mixed ...$args): Future
     {
-        if ($this->isThrottling()) {
+        while ($this->isThrottling()) {
             // Suspend caller because we cannot allow any more throughput. This does not occur under normal conditions
             // but will occur if the caller forgets to await() or if multiple fibers try to use the same throttle.
             ($this->suspensions[] = EventLoop::getSuspension())->suspend();
